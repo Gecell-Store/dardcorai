@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050508">
+    
+    <title>Dardcor AI</title>
+    <link rel="icon" href="/logo.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <link rel="stylesheet" href="/css/tailwind.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/atom-one-dark.min.css">
+    <script src="/js/highlight.min.js"></script>
+    <script src="/js/marked.min.js"></script>
+    
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            position: fixed;
+            inset: 0;
+            background-color: #050508;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .scroll-container {
+            height: 100%;
+            width: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .verify-card {
+            background: rgba(10, 10, 18, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(88, 28, 135, 0.3);
+            box-shadow: 0 0 40px rgba(88, 28, 135, 0.15);
+            animation: floatUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        @keyframes floatUp { from { opacity: 0; transform: translateY(40px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        
+        .otp-input:focus { 
+            border-color: #a855f7 !important;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.15) !important; 
+            background: rgba(5, 5, 8, 0.8) !important;
+        }
+        
+        @keyframes star-twinkle { 0%, 100% { opacity: 0.3; transform: scale(0.5); } 50% { opacity: 1; transform: scale(1.2); } }
+        .animate-star { animation: star-twinkle 3s ease-in-out infinite; }
+        .star { position: absolute; background: white; border-radius: 50%; }
+        
+        @keyframes orbit-1 { 0% { transform: rotate3d(1, 1, 1, 0deg); } 100% { transform: rotate3d(1, 1, 1, 360deg); } }
+        @keyframes orbit-2 { 0% { transform: rotate3d(1, -1, 1, 0deg); } 100% { transform: rotate3d(1, -1, 1, 360deg); } }
+        .animate-orbit-1 { animation: orbit-1 6s linear infinite; }
+        .animate-orbit-2 { animation: orbit-2 7s linear infinite; }
+    </style>
+</head>
+<body class="bg-[#050508] text-white font-sans h-dvh flex overflow-hidden relative">
+
+    <div class="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <div class="star w-0.5 h-0.5 top-10 left-20 animate-star" style="animation-delay: 0s;"></div>
+        <div class="star w-1 h-1 top-1/4 right-1/4 animate-star" style="animation-delay: 1s;"></div>
+        <div class="star w-0.5 h-0.5 bottom-1/3 left-1/3 animate-star" style="animation-delay: 2s;"></div>
+        <div class="star w-1 h-1 top-20 right-10 animate-star" style="animation-delay: 1.5s;"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[100px] pointer-events-none"></div>
+    </div>
+
+    <div class="scroll-container flex items-center justify-center p-4 relative z-10">
+        <div class="verify-card p-6 md:p-8 rounded-2xl w-full max-w-md text-center relative overflow-hidden my-auto border border-purple-900/30">
+            
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-purple-600/20 rounded-full blur-3xl animate-orbit-1"></div>
+            <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-fuchsia-600/20 rounded-full blur-3xl animate-orbit-2"></div>
+
+            <div class="w-16 h-16 md:w-20 md:h-20 bg-[#050508] rounded-full flex items-center justify-center mx-auto mb-6 border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.2)] relative z-10">
+                <i class="fas fa-shield-alt text-2xl md:text-3xl text-purple-400"></i>
+            </div>
+            
+            <h2 class="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-white to-purple-400 drop-shadow-[0_0_10px_rgba(168,85,247,0.5)] mb-2 relative z-10">Verifikasi Email</h2>
+            <div class="text-purple-300/60 text-xs md:text-sm mb-6 relative z-10">
+                Kode OTP telah dikirim ke <br>
+                <span class="text-purple-300 font-medium break-all"><%= email %></span>
+                <br>
+                <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-yellow-500/20 bg-yellow-500/5 text-yellow-500/90 text-[10px] font-medium">
+                    <i class="fas fa-clock"></i> Kode berlaku selama 5 menit
+                </div>
+            </div>
+
+            <form id="otpForm" class="space-y-6 relative z-10">
+                <input type="hidden" id="userEmail" value="<%= email %>">
+                <div class="flex justify-center gap-2">
+                    <input type="text" maxlength="6" id="otp" class="otp-input w-full h-12 md:h-14 text-center text-xl md:text-2xl font-bold tracking-[0.5em] bg-[rgba(5,5,8,0.6)] border border-purple-900/30 rounded-xl text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none placeholder-purple-500/20 transition-all" placeholder="000000" autocomplete="off">
+                </div>
+                <p id="msg" class="text-xs text-red-400 hidden bg-red-900/10 py-1.5 rounded border border-red-500/20"></p>
+                <button type="submit" id="btnVerify" class="w-full py-3 md:py-3.5 rounded-xl bg-[#2e1065] hover:bg-purple-900 text-white font-bold transition-all border border-purple-700 hover:border-purple-500 shadow-[0_0_15px_rgba(88,28,135,0.4)] flex justify-center items-center gap-2 text-sm md:text-base transform hover:scale-[1.02]">
+                    <span>Verifikasi</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/verify.js"></script>
+</body>
+</html>

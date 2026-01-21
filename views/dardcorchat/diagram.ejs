@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="theme-color" content="#050508">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <title>Dardcor AI</title>
+    
+    <link rel="icon" href="/logo.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <link rel="stylesheet" href="/css/tailwind.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/atom-one-dark.min.css">
+    <script src="/js/highlight.min.js"></script>
+    <script src="/js/marked.min.js"></script>
+    
+    <style>
+        html, body { 
+            height: 100dvh; width: 100%; margin: 0; padding: 0; 
+            overflow: hidden; background-color: #0b0c15; 
+            position: fixed; inset: 0; color: white; 
+            font-family: 'Consolas', sans-serif;
+            overscroll-behavior: none;
+            -webkit-user-select: none; user-select: none;
+        }
+        
+        .top-controls { 
+            position: fixed; top: 0; left: 0; z-index: 100;
+            display: flex;
+        }
+
+        #sidebar-toggle {
+            width: 50px; height: 50px;
+            background-color: #0e0f19; color: #a5b3ce;
+            border: none; border-right: 1px solid #333;
+            border-bottom: 1px solid #333;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #sidebar-toggle:hover { background-color: #2a2d3d; color: white; }
+
+        .action-btn {
+            height: 50px; padding: 0 20px;
+            background-color: #0e0f19; color: #a5b3ce;
+            border: none; border-right: 1px solid #333; border-bottom: 1px solid #333;
+            font-size: 12px; font-weight: bold;
+            display: flex; align-items: center; gap: 8px;
+            cursor: pointer; transition: all 0.2s;
+            border-bottom-right-radius: 8px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .action-btn:hover { background-color: #2a2d3d; color: white; }
+
+        #editor-pane {
+            position: fixed; top: 0; bottom: 0; left: 0;
+            width: 100%; max-width: 400px;
+            display: flex; flex-direction: column;
+            background-color: #13131f; border-right: 1px solid #333;
+            z-index: 50; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(-100%);
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+        }
+        body.sidebar-open #editor-pane { transform: translateX(0); }
+
+        #editor-header { height: 50px; background: #0e0f19; border-bottom: 1px solid #333; flex-shrink: 0; }
+        #code-editor { flex: 1; background-color: #13131f; color: #a5b3ce; border: none; padding: 20px; resize: none; outline: none; font-size: 14px; line-height: 1.6; user-select: text; }
+        #editor-footer { padding: 15px; border-top: 1px solid #333; background: #0e0f19; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
+
+        #preview-pane { 
+            flex: 1; position: relative; height: 100%;
+            background-color: #0b0c15;
+            background-image: radial-gradient(#1f2937 1px, transparent 1px); 
+            background-size: 20px 20px; 
+            overflow: hidden; cursor: grab;
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            touch-action: none;
+        }
+        #preview-pane:active { cursor: grabbing; }
+
+        @media (min-width: 768px) {
+            #editor-pane { transform: translateX(0); } 
+            body.sidebar-closed #editor-pane { transform: translateX(-100%); }
+            #preview-pane { margin-left: 400px; }
+            body.sidebar-closed #preview-pane { margin-left: 0; }
+        }
+
+        #diagram-content { transform-origin: center center; transition: transform 0.1s ease-out; display: flex; align-items: center; justify-content: center; min-height: 100%; min-width: 100%; padding: 50px; box-sizing: border-box; }
+        .mermaid svg { max-width: none !important; height: auto !important; }
+
+        .floating-controls { 
+            position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); 
+            right: max(20px, env(safe-area-inset-right)); 
+            display: flex; gap: 8px; background: #13131f; padding: 8px; border-radius: 12px; border: 1px solid #333;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); z-index: 40;
+        }
+        .ctrl-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: #2a2d3d; color: white; transition: all 0.2s; border: none; cursor: pointer; }
+        .ctrl-btn:hover { background: #8b5cf6; }
+
+        #download-modal {
+            position: fixed; inset: 0; z-index: 200;
+            background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        #download-modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal-content {
+            background: #13131f; border: 1px solid #333; border-radius: 16px;
+            padding: 24px; width: 90%; max-width: 320px;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95); transition: transform 0.2s;
+        }
+        #download-modal.active .modal-content { transform: scale(1); }
+        
+        .download-option {
+            display: flex; align-items: center; gap: 12px;
+            width: 100%; padding: 12px 16px; margin-bottom: 8px;
+            background: #202336; border: 1px solid #333; border-radius: 8px;
+            color: white; font-weight: bold; cursor: pointer; transition: all 0.2s;
+        }
+        .download-option:hover { background: #2a2d3d; border-color: #8b5cf6; }
+        .download-option i { font-size: 18px; width: 24px; color: #8b5cf6; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0c15; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    </style>
+</head>
+<body class="">
+    <input type="hidden" id="initial-data" value="<%= code %>">
+
+    <div class="top-controls">
+        <button onclick="toggleEditor()" id="sidebar-toggle">
+            <i class="fas fa-bars text-xl"></i>
+        </button>
+        <button onclick="openDownloadModal()" class="action-btn">
+            <i class="fas fa-download"></i> <span class="hidden sm:inline">DOWNLOAD</span>
+        </button>
+    </div>
+
+    <aside id="editor-pane">
+        <div id="editor-header"></div> 
+        <textarea id="code-editor" spellcheck="false" placeholder="Tulis kode mermaid disini..."></textarea>
+        <div id="editor-footer">
+            <button onclick="fixCode()" class="px-4 py-2.5 bg-[#2e1065] hover:bg-purple-900 text-white text-sm font-bold rounded-lg flex items-center gap-2 transition w-full justify-center md:w-auto shadow-lg border border-purple-700 hover:border-purple-500">
+                <i class="fas fa-magic"></i> FIX
+            </button>
+            <button onclick="renderDiagram()" class="px-6 py-2.5 bg-[#2e1065] hover:bg-purple-900 text-white text-sm font-bold rounded-lg flex items-center gap-2 transition w-full justify-center md:w-auto shadow-lg border border-purple-700 hover:border-purple-500">
+                <i class="fas fa-play"></i> RENDER
+            </button>
+        </div>
+    </aside>
+
+    <main id="preview-pane">
+        <div id="diagram-content">
+            <div id="mermaid-target" class="mermaid"></div>
+        </div>
+
+        <div class="floating-controls">
+            <button onclick="adjustZoom(-0.1)" class="ctrl-btn"><i class="fas fa-minus"></i></button>
+            <button onclick="resetZoom()" class="ctrl-btn"><i class="fas fa-expand"></i></button>
+            <button onclick="adjustZoom(0.1)" class="ctrl-btn"><i class="fas fa-plus"></i></button>
+        </div>
+    </main>
+
+    <div id="download-modal" onclick="if(event.target === this) closeDownloadModal()">
+        <div class="modal-content">
+            <h3 class="text-lg font-bold text-white mb-4">Pilih Format Download</h3>
+            <button onclick="downloadAs('jpg')" class="download-option">
+                <i class="fas fa-image"></i> Download JPG
+            </button>
+            <button onclick="downloadAs('png')" class="download-option">
+                <i class="fas fa-file-image"></i> Download PNG
+            </button>
+            <button onclick="downloadAs('pdf')" class="download-option">
+                <i class="fas fa-file-pdf"></i> Download PDF
+            </button>
+            <button onclick="closeDownloadModal()" class="mt-4 text-sm text-gray-400 hover:text-white underline">
+                Batal
+            </button>
+        </div>
+    </div>
+
+    <script src="/js/diagram.js"></script>
+</body>
+</html>
