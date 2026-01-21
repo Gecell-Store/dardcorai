@@ -2103,14 +2103,6 @@ video {
   color: rgb(192 132 252 / var(--tw-text-opacity, 1));
 }
 
-.text-purple-400\/50 {
-  color: rgb(192 132 252 / 0.5);
-}
-
-.text-purple-400\/70 {
-  color: rgb(192 132 252 / 0.7);
-}
-
 .text-purple-400\/80 {
   color: rgb(192 132 252 / 0.8);
 }

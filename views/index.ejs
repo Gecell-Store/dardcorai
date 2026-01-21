@@ -111,7 +111,7 @@
     <aside id="sidebar" class="fixed inset-y-0 left-0 w-72 bg-[#0a0a12] border-r border-purple-900/20 flex flex-col transform -translate-x-full z-50 transition-transform duration-300 safe-pl shadow-2xl shadow-purple-900/10">
         <div class="h-16 shrink-0 flex items-center px-4 border-b border-white/10 bg-[#0a0a12] relative">
             <span class="font-bold text-lg text-purple-400 flex items-center gap-3"><img src="/logo.png" class="w-7 h-7 rounded-full shadow-lg"> Dardcor <span class="text-white">AI</span></span>
-             <button onclick="toggleSidebar()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors p-2"><i class="fas fa-times text-lg"></i></button>
+            <button onclick="toggleSidebar()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors p-2"><i class="fas fa-times text-lg"></i></button>
         </div>
 
         <div class="flex-1 flex flex-col items-center justify-center text-center opacity-60 px-4">
@@ -174,40 +174,49 @@
         </section>
 
         <footer class="shrink-0 px-4 pt-0 pb-2 md:pb-4 safe-pb relative z-20 w-full bg-[#050508]">
-            <div class="max-w-3xl mx-auto">
-                <div class="bg-[#0e0e14] border border-purple-900/40 rounded-[1.5rem] p-3 shadow-[0_0_25px_rgba(88,28,135,0.15)] relative flex flex-col">
+            <div class="w-full max-w-3xl mx-auto relative">
+                
+                <div id="file-preview-container" class="flex flex-wrap gap-2 mb-2 hidden pl-1"></div>
+                
+                <div class="bg-[#0e0e14] border border-purple-900/40 rounded-[1.5rem] p-3 shadow-[0_0_25px_rgba(88,28,135,0.15)] relative flex flex-col transition-colors focus-within:border-purple-700/60">
                     
-                    <textarea 
-                        disabled
-                        rows="1" 
-                        class="w-full bg-transparent resize-none outline-none text-purple-100 text-sm md:text-base placeholder:text-purple-500/40 px-1 mb-2 font-light cursor-not-allowed"
-                        placeholder="Ask To Dardcor..."
-                        style="min-height: 24px;"
-                    ></textarea>
+                    <textarea id="message-input" rows="1" disabled class="w-full bg-transparent resize-none outline-none text-purple-100 text-sm md:text-base placeholder:text-purple-500/40 px-2 mb-2 font-light max-h-32 overflow-y-auto leading-relaxed scrollbar-hide cursor-not-allowed" placeholder="Ask To Dardcor..."></textarea>
                     
-                    <div class="flex justify-between items-center">
+                    <div class="flex justify-between items-center mt-1">
                         <div class="flex gap-2">
-                            <button disabled class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-purple-800/30 bg-purple-900/10 text-[11px] md:text-xs font-medium text-purple-400/70 cursor-not-allowed">
-                                <i class="fas fa-brain text-[10px]"></i>
-                                <span>Deep Think</span>
+                            <button id="search-btn" type="button" disabled class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-purple-800/30 bg-purple-900/10 text-[11px] md:text-xs font-medium text-purple-400 hover:text-white hover:bg-purple-900/40 hover:border-purple-500/50 transition-all cursor-not-allowed group" title="Web Search">
+                                <i class="fas fa-globe text-xs group-hover:scale-110 transition-transform"></i> <span class="hidden md:inline">Search</span>
                             </button>
-                            <button disabled class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-purple-800/30 bg-purple-900/10 text-[11px] md:text-xs font-medium text-purple-400/70 cursor-not-allowed">
-                                <i class="fas fa-globe text-[10px]"></i>
-                                <span>Search</span>
+        
+                            <button id="vscode-btn" type="button" disabled class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-purple-800/30 bg-purple-900/10 text-[11px] md:text-xs font-medium text-purple-400 hover:text-white hover:bg-purple-900/40 hover:border-purple-500/50 transition-all cursor-not-allowed group" title="VS Code Editor">
+                                <i class="fas fa-code text-xs group-hover:scale-110 transition-transform"></i> <span class="hidden md:inline">VS Code</span>
                             </button>
                         </div>
-
-                        <div class="flex items-center gap-3">
-                            <button disabled class="text-purple-500/40 cursor-not-allowed hover:text-purple-400">
+        
+                        <div class="flex items-center gap-3 pr-1">
+                            <button id="mic-btn" type="button" disabled class="text-purple-500/40 hover:text-white transition-colors p-1 cursor-not-allowed" title="Voice Input">
+                                <i class="fas fa-microphone text-lg"></i>
+                            </button>
+        
+                            <button id="file-upload-btn" type="button" disabled class="text-purple-500/40 hover:text-purple-300 transition-colors p-1 cursor-not-allowed" title="Upload File">
                                 <i class="fas fa-paperclip text-lg"></i>
                             </button>
-                            <button disabled class="w-8 h-8 rounded-full bg-purple-900/20 border border-purple-800/30 flex items-center justify-center text-purple-400/50 cursor-not-allowed">
-                                <i class="fas fa-arrow-up text-sm"></i>
+        
+                            <button id="send-btn" type="button" disabled class="w-8 h-8 rounded-full bg-purple-900/20 border border-purple-800/30 flex items-center justify-center text-purple-400/80 hover:text-white hover:bg-purple-800 hover:border-purple-600 transition-all shadow-lg shadow-purple-900/10 cursor-not-allowed">
+                                <i id="send-icon" class="fas fa-paper-plane text-xs"></i>
                             </button>
                         </div>
                     </div>
                 </div>
-                <p class="text-center text-[10px] text-purple-500/30 mt-2">Dardcor AI dapat membuat kesalahan. Cek info penting.</p>
+        
+                <div class="text-center mt-2 text-[10px] text-purple-500/30">Dardcor AI dapat membuat kesalahan. Cek info penting.</div>
+                
+                <div id="drop-zone" class="absolute inset-0 top-0 left-4 right-4 bg-purple-950/90 hidden items-center justify-center rounded-[1.5rem] z-50 backdrop-blur-sm border-2 border-purple-900 border-dashed h-full">
+                    <div class="text-center text-purple-200">
+                        <i class="fas fa-cloud-upload-alt text-4xl mb-2 animate-bounce"></i>
+                        <p class="font-bold text-sm">Lepaskan file disini</p>
+                    </div>
+                </div>
             </div>
         </footer>
     </main>
