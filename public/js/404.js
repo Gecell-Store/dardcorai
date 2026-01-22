@@ -4,7 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (backBtn) {
         backBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            window.history.back();
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = '/';
+            }
         });
     }
 });

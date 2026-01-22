@@ -5,17 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (toggleBtn && passwordInput) {
         const icon = toggleBtn.querySelector('i');
-        
-        toggleBtn.addEventListener('click', () => {
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                passwordInput.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            icon.className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+            passwordInput.focus();
         });
     }
 
@@ -27,32 +22,61 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnLoader = document.getElementById('btnLoader');
             const errorMessage = document.getElementById('errorMessage');
             
-            submitBtn.disabled = true;
-            btnText.textContent = 'Mengirim OTP...'; 
-            btnLoader.classList.remove('hidden');
-            errorMessage.classList.add('hidden');
+            const email = this.email.value.trim();
+            const username = this.username.value.trim();
+            const password = this.password.value;
 
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
+            errorMessage.classList.add('hidden');
+            errorMessage.innerText = '';
+
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            if (!emailRegex.test(email)) {
+                errorMessage.innerText = 'Format email tidak valid.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+            if (!usernameRegex.test(username)) {
+                errorMessage.innerText = 'Username hanya boleh huruf, angka, garis bawah (3-20 karakter).';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            if (password.length < 8) {
+                errorMessage.innerText = 'Password minimal 8 karakter.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            btnText.innerText = 'Memproses...';
+            btnLoader.classList.remove('hidden');
 
             try {
                 const response = await fetch('/register', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ email, username, password })
                 });
+
+                if (response.status === 429) {
+                    throw new Error('Terlalu banyak permintaan. Coba lagi nanti.');
+                }
+
                 const result = await response.json();
 
                 if (response.ok && result.success) {
                     window.location.href = result.redirectUrl || '/verify-otp';
                 } else {
-                    throw new Error(result.message || 'Registration failed');
+                    throw new Error(result.message || 'Registrasi gagal.');
                 }
             } catch (error) {
-                errorMessage.textContent = error.message;
+                errorMessage.innerText = error.message;
                 errorMessage.classList.remove('hidden');
                 submitBtn.disabled = false;
-                btnText.textContent = 'Register';
+                btnText.innerText = 'Register';
                 btnLoader.classList.add('hidden');
             }
         });

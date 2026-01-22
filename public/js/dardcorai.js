@@ -166,6 +166,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchBtn = document.getElementById('search-btn');
     const vscodeBtn = document.getElementById('vscode-btn');
 
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     function parseMessageContent(text) {
         if (!text) return { answer: '' };
         const safeText = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
@@ -262,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tabName = document.getElementById('active-file-name');
             if (tabName && currentFile === filename) {
                 const originalText = tabName.innerText;
-                tabName.innerHTML = `${filename} <span class="text-green-500 text-[10px] ml-2">(Saved)</span>`;
+                tabName.innerHTML = `${escapeHtml(filename)} <span class="text-green-500 text-[10px] ml-2">(Saved)</span>`;
                 setTimeout(() => { tabName.innerText = filename; }, 2000);
             }
         } catch (e) {}
@@ -300,12 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!menu) return;
 
         contextMenuTarget = { name, type };
+        const safeName = escapeHtml(name);
         
         menu.innerHTML = `
-            <div class="context-menu-item" onclick="window.renameItem('${name}')">
+            <div class="context-menu-item" onclick="window.renameItem('${safeName}')">
                 <i class="fas fa-edit"></i> Rename
             </div>
-            <div class="context-menu-item" style="color: #ef4444;" onclick="window.deleteItem('${name}')">
+            <div class="context-menu-item" style="color: #ef4444;" onclick="window.deleteItem('${safeName}')">
                 <i class="fas fa-trash"></i> Delete
             </div>
         `;
@@ -334,10 +345,11 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const key of sortedKeys) {
                 const item = node[key];
                 const itemEl = document.createElement('div');
+                const safeKey = escapeHtml(key);
                 
                 if (item.type === 'folder') {
                     itemEl.className = 'folder-item';
-                    itemEl.innerHTML = `<i class="fas fa-folder"></i> ${item.name || key}`;
+                    itemEl.innerHTML = `<i class="fas fa-folder"></i> ${safeKey}`;
                     itemEl.oncontextmenu = (e) => showContextMenu(e, key, 'folder');
                     
                     const childContainer = document.createElement('div');
@@ -348,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     itemEl.className = `file-item ${currentFile === key ? 'active' : ''}`;
                     const iconClass = getFileIconClass(null, key);
-                    itemEl.innerHTML = `<i class="fas ${iconClass}"></i> ${key}`;
+                    itemEl.innerHTML = `<i class="fas ${iconClass}"></i> ${safeKey}`;
                     itemEl.onclick = () => openFile(key, item.content);
                     itemEl.oncontextmenu = (e) => showContextMenu(e, key, 'file');
                     containerEl.appendChild(itemEl);
@@ -378,9 +390,9 @@ document.addEventListener('DOMContentLoaded', () => {
         popup.className = 'editor-popup';
         
         popup.innerHTML = `
-            <div class="editor-popup-header">${title}</div>
+            <div class="editor-popup-header">${escapeHtml(title)}</div>
             <div class="editor-popup-body">
-                <input type="text" class="editor-popup-input" placeholder="${placeholder}" value="${defaultValue}">
+                <input type="text" class="editor-popup-input" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(defaultValue)}">
             </div>
             <div class="editor-popup-footer">
                 <button class="editor-popup-btn btn-cancel">Cancel</button>
@@ -425,9 +437,9 @@ document.addEventListener('DOMContentLoaded', () => {
         popup.className = 'editor-popup';
         
         popup.innerHTML = `
-            <div class="editor-popup-header" style="color: #ef4444;">${title}</div>
+            <div class="editor-popup-header" style="color: #ef4444;">${escapeHtml(title)}</div>
             <div class="editor-popup-body">
-                <p style="color: #ccc; font-size: 13px;">${message}</p>
+                <p style="color: #ccc; font-size: 13px;">${escapeHtml(message)}</p>
             </div>
             <div class="editor-popup-footer">
                 <button class="editor-popup-btn btn-cancel">Cancel</button>
@@ -824,7 +836,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnHtml = `<button onclick="window.previewDiagram(this)" class="cmd-btn btn-diagram" title="Preview Diagram"><i class="fas fa-project-diagram"></i> Preview Diagram</button>`;
             }
             
-            const escapedCode = validCode.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const escapedCode = validCode
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+
             const encodedForEditor = encodeURIComponent(validCode);
             
             const terminalHtml = `
@@ -833,25 +851,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="standard-view">
                             <div class="terminal-container" style="background-color: #000000 !important; border: 1px solid #333; margin: 0; max-width: 100%;">
                                 <div class="terminal-head" style="height: 32px; padding: 0 12px; background-color: #000000 !important; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #333;">
-                                    <div class="text-[10px] font-bold text-gray-400 uppercase flex items-center"><i class="fas fa-code mr-2"></i> ${lang}</div>
+                                    <div class="text-[10px] font-bold text-gray-400 uppercase flex items-center"><i class="fas fa-code mr-2"></i> ${escapeHtml(lang)}</div>
                                     <div class="terminal-actions flex gap-2">
                                         ${btnHtml}
                                         <button onclick="window.copyCode(this)" class="cmd-btn btn-copy" style="font-size: 10px; padding: 2px 8px; background-color: #21262d; color: #c9d1d9;" title="Salin Kode"><i class="fas fa-copy"></i></button>
                                     </div>
                                 </div>
                                 <div class="terminal-code" style="background-color: #000000 !important;">
-                                    <pre style="background: transparent !important; margin: 0;"><code class="hljs ${lang}" style="background: transparent !important; font-family: 'Consolas', monospace; font-size: 12px; color: #e6edf3;">${escapedCode}</code></pre>
+                                    <pre style="background: transparent !important; margin: 0;"><code class="hljs ${escapeHtml(lang)}" style="background: transparent !important; font-family: 'Consolas', monospace; font-size: 12px; color: #e6edf3;">${escapedCode}</code></pre>
                                     <textarea class="hidden raw-code">${escapedCode}</textarea>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="vscode-view-trigger">
-                            <button class="btn-vscode-action" onclick="window.sendToVSCode(this)" data-code="${encodedForEditor}" data-lang="${lang}">
+                            <button class="btn-vscode-action" onclick="window.sendToVSCode(this)" data-code="${encodedForEditor}" data-lang="${escapeHtml(lang)}">
                                 <i class="fas fa-arrow-right"></i> INSERT TO EDITOR
-                            </button>
-                            <button class="btn-vscode-peek" onclick="this.closest('.vscode-view-trigger').previousElementSibling.style.display = (this.closest('.vscode-view-trigger').previousElementSibling.style.display === 'block' ? 'none' : 'block');">
-                                [ Peek Code ]
                             </button>
                         </div>
 
@@ -860,17 +875,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             return terminalHtml;
         };
+        
         renderer.link = function(href, title, text) {
-            let u, t;
-            if (typeof href === 'object' && href !== null) { u = href.href || ''; t = href.text || u; } else { u = href || ''; t = text || u; }
-            u = String(u).trim(); t = String(t).trim();
-            if (u.includes('[object Object]')) u = '';
-            if (t.includes('[object Object]')) t = u;
-            if (!u && t.match(/^https?:\/\//)) u = t;
-            if (!t && u) t = u;
-            if (!u) u = '#';
-            return `<a href="${u}" target="_blank" class="text-purple-500 hover:text-purple-300 hover:underline font-bold transition-colors break-all" title="${title || ''}">${t}</a>`;
+            let u = (href || '').trim();
+            const allowedProtocols = ['http:', 'https:', 'mailto:', '#'];
+            try {
+                const parsed = new URL(u, window.location.origin);
+                if (!allowedProtocols.includes(parsed.protocol)) u = '#';
+            } catch(e) { u = '#'; }
+            
+            return `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="text-purple-500 hover:text-purple-300 hover:underline font-bold transition-colors break-all" title="${escapeHtml(title || '')}">${text}</a>`;
         };
+        
         marked.setOptions({ renderer: renderer, gfm: true, breaks: true, sanitize: false });
     }
 
@@ -885,6 +901,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const indicator = document.getElementById('loading-indicator');
             if (indicator) indicator.remove();
         }
+        selectedFiles.forEach(f => {
+             if (f instanceof File && f.type.startsWith('image/')) {
+                 URL.revokeObjectURL(f);
+             }
+        });
         selectedFiles = [];
         updateFilePreviews();
         if (messageInput) { messageInput.value = ''; messageInput.style.height = 'auto'; }
@@ -930,12 +951,14 @@ document.addEventListener('DOMContentLoaded', () => {
             div.className = "relative group w-16 h-16 rounded-lg overflow-hidden border border-purple-900/40 bg-[#0e0e14]";
             if (file.type.startsWith('image/')) {
                 const img = document.createElement('img');
-                img.src = URL.createObjectURL(file);
+                const objUrl = URL.createObjectURL(file);
+                img.src = objUrl;
+                img.onload = () => URL.revokeObjectURL(objUrl);
                 img.className = "w-full h-full object-cover";
                 div.appendChild(img);
             } else {
                 const iconClass = getFileIconClass(file.type, file.name);
-                div.innerHTML = `<div class="w-full h-full flex flex-col items-center justify-center p-1 text-center"><i class="fas ${iconClass} text-xl mb-1"></i><span class="text-[8px] text-gray-400 truncate w-full">${file.name.slice(-6)}</span></div>`;
+                div.innerHTML = `<div class="w-full h-full flex flex-col items-center justify-center p-1 text-center"><i class="fas ${iconClass} text-xl mb-1"></i><span class="text-[8px] text-gray-400 truncate w-full">${escapeHtml(file.name.slice(-6))}</span></div>`;
             }
             const removeBtn = document.createElement('button');
             removeBtn.className = "absolute top-0 right-0 bg-red-600/90 text-white w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity rounded-bl-md z-10 cursor-pointer";
@@ -1334,7 +1357,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (imgUrl) fileHtml += `<div class="relative rounded-lg overflow-hidden border border-purple-900/30 shadow-lg group transition-transform hover:scale-105 bg-[#0e0e14] min-w-[100px] min-h-[100px]"><img src="${imgUrl}" class="max-w-[200px] max-h-[200px] object-cover block"></div>`;
                 } else {
                     const iconClass = getFileIconClass(mimetype, filename);
-                    fileHtml += `<div class="text-[10px] flex items-center gap-2 bg-[#0e0e14] px-3 py-1.5 rounded-lg border border-purple-900/30 text-gray-300 max-w-full shadow-sm cursor-default"><i class="fas ${iconClass}"></i> <span class="truncate">${filename}</span></div>`;
+                    fileHtml += `<div class="text-[10px] flex items-center gap-2 bg-[#0e0e14] px-3 py-1.5 rounded-lg border border-purple-900/30 text-gray-300 max-w-full shadow-sm cursor-default"><i class="fas ${iconClass}"></i> <span class="truncate">${escapeHtml(filename)}</span></div>`;
                 }
             });
             fileHtml += `</div>`;
@@ -1344,7 +1367,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let contentHtml = '';
         if (role === 'user') {
-            contentHtml = `<div class="whitespace-pre-wrap break-words user-text">${text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-purple-500 hover:text-purple-300 hover:underline break-all">$1</a>')}</div>`;
+            const safeText = escapeHtml(text).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-purple-500 hover:text-purple-300 hover:underline break-all">$1</a>');
+            contentHtml = `<div class="whitespace-pre-wrap break-words user-text">${safeText}</div>`;
         } else {
             const parsed = parseMessageContent(text);
 
@@ -1385,13 +1409,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!messageList) return; 
         messageList.innerHTML = `<div id="empty-state" class="flex flex-col items-center justify-center flex-grow h-full w-full min-h-[60vh] pt-10"><div class="relative w-48 h-48 md:w-56 md:h-56 flex items-center justify-center mb-6 md:mb-8 perspective-[1000px]"><div class="absolute inset-0 bg-purple-900/20 rounded-full blur-3xl animate-pulse"></div><div class="absolute w-[110%] h-[110%] rounded-full border border-purple-500/60 shadow-[0_0_15px_rgba(168,85,247,0.3)] animate-orbit-1 border-t-transparent border-l-transparent"></div><div class="absolute w-[110%] h-[110%] rounded-full border border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.3)] animate-orbit-2 border-b-transparent border-r-transparent"></div><div class="absolute w-[110%] h-[110%] rounded-full border border-violet-500/50 animate-orbit-3 border-t-transparent border-r-transparent"></div><div class="absolute w-[110%] h-[110%] rounded-full border border-indigo-500/40 animate-orbit-4 border-b-transparent border-l-transparent"></div><div class="absolute w-[110%] h-[110%] rounded-full border border-pink-500/40 animate-orbit-5 border-l-transparent border-r-transparent"></div><div class="absolute w-[110%] h-[110%] rounded-full border border-cyan-500/40 animate-orbit-6 border-t-transparent border-b-transparent"></div><div class="w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden border-2 border-purple-400/20 bg-[#050508] relative z-10 shadow-[0_0_40px_rgba(147,51,234,0.3)]"><div class="absolute inset-0 bg-gradient-to-b from-purple-900/30 via-transparent to-black z-10"></div><img src="/logo.png" alt="Logo" class="relative w-full h-full object-cover opacity-90"></div></div><h2 class="text-3xl md:text-5xl font-bold mb-2 text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-white to-purple-400 drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">Dardcor AI</h2><p class="text-sm md:text-base text-purple-300/60 text-center max-w-xs md:max-w-md px-4 leading-relaxed font-light tracking-wide">Apa yang bisa saya bantu?</p></div>`; 
         messageList.className = "w-full max-w-3xl mx-auto flex flex-col h-full items-center justify-center pb-4"; 
-    }
-
-    function linkify(text) {
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        return text.replace(urlRegex, function(url) {
-            return '<a href="' + url + '" target="_blank" class="text-purple-500 hover:text-purple-300 hover:underline break-all">' + url + '</a>';
-        });
     }
 
     function appendMessage(role, text, files = []) {
@@ -1547,9 +1564,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (done) break;
                 buffer += decoder.decode(value, { stream: true });
                 const chunks = buffer.split('\n\n');
-                buffer = chunks.pop(); 
+                buffer = chunks.pop() || ''; 
 
                 for (const chunkBlock of chunks) {
+                    if (!chunkBlock.trim()) continue;
                     const lines = chunkBlock.split('\n');
                     let eventType = 'message'; 
                     let data = null;
@@ -1595,18 +1613,13 @@ document.addEventListener('DOMContentLoaded', () => {
             scrollToBottom(true);
 
         } catch (e) {
-            if (e.name === 'AbortError') {
-                isStreaming = false; 
-                document.getElementById('loading-indicator')?.remove();
-                if (sendIcon) sendIcon.classList.replace('fa-stop', 'fa-paper-plane');
-                isSending = false;
-                abortController = null;
-                return;
-            }
+            if (e.name === 'AbortError') return;
             document.getElementById('loading-indicator')?.remove();
             window.showNavbarAlert('Gagal mengirim pesan', 'error');
         } finally {
-            isSending = false; abortController = null; if (sendIcon) sendIcon.classList.replace('fa-stop', 'fa-paper-plane');
+            isSending = false; 
+            abortController = null; 
+            if (sendIcon) sendIcon.classList.replace('fa-stop', 'fa-paper-plane');
         }
     }
 

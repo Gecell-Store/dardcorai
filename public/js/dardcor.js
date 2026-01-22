@@ -5,14 +5,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (toggleBtn && passwordInput) {
         const icon = toggleBtn.querySelector('i');
-        toggleBtn.addEventListener('click', () => {
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             if (passwordInput.type === 'password') {
-                passwordInput.type = 'text'; 
-                icon.classList.remove('fa-eye'); 
+                passwordInput.type = 'text';
+                icon.classList.remove('fa-eye');
                 icon.classList.add('fa-eye-slash');
             } else {
-                passwordInput.type = 'password'; 
-                icon.classList.remove('fa-eye-slash'); 
+                passwordInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
                 icon.classList.add('fa-eye');
             }
         });
@@ -26,35 +27,53 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnLoader = document.getElementById('btnLoader');
             const errorMessage = document.getElementById('errorMessage');
             
-            submitBtn.disabled = true; 
-            btnText.textContent = 'Signing In...'; 
-            btnLoader.classList.remove('hidden'); 
+            const email = this.email.value.trim();
+            const password = this.password.value;
+
             errorMessage.classList.add('hidden');
-            
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            
+            errorMessage.innerText = '';
+
+            if (!email || !password) {
+                errorMessage.innerText = 'Email dan Password harus diisi.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                errorMessage.innerText = 'Format email tidak valid.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            btnText.innerText = 'Signing In...';
+            btnLoader.classList.remove('hidden');
+
             try {
                 const response = await fetch('/dardcor-login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ email, password })
                 });
+
+                if (response.status === 429) {
+                    throw new Error('Terlalu banyak percobaan login. Tunggu sebentar.');
+                }
+
                 const result = await response.json();
-                
-                if (result.success) {
-                    setTimeout(() => {
-                         const targetUrl = result.redirectUrl || '/dardcorchat/dardcor-ai';
-                         window.location.replace(targetUrl);
-                    }, 500);
+
+                if (response.ok && result.success) {
+                    window.location.replace(result.redirectUrl || '/dardcorchat/dardcor-ai');
                 } else {
-                    throw new Error(result.message || 'Login failed');
+                    throw new Error(result.message || 'Login gagal.');
                 }
             } catch (error) {
-                errorMessage.textContent = error.message;
-                errorMessage.classList.remove('hidden'); 
-                submitBtn.disabled = false; 
-                btnText.textContent = 'Sign In'; 
+                errorMessage.innerText = error.message;
+                errorMessage.classList.remove('hidden');
+                submitBtn.disabled = false;
+                btnText.innerText = 'Sign In';
                 btnLoader.classList.add('hidden');
             }
         });
