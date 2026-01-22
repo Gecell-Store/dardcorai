@@ -166,6 +166,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchBtn = document.getElementById('search-btn');
     const vscodeBtn = document.getElementById('vscode-btn');
 
+    function checkAuth(response) {
+        if (response.status === 401) {
+            window.location.href = '/dardcor';
+            return false;
+        }
+        return true;
+    }
+
     function escapeHtml(text) {
         if (!text) return '';
         return text
@@ -212,6 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchProjectFiles() {
         try {
             const res = await fetch('/api/project/files');
+            if (!checkAuth(res)) return;
             if (res.ok) {
                 const data = await res.json();
                 if (data.success && data.files) {
@@ -251,14 +260,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!filename) return;
         try {
             if (oldName) {
-                await fetch('/api/project/delete', {
+                const delRes = await fetch('/api/project/delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: oldName, path: 'root' })
                 });
+                if (!checkAuth(delRes)) return;
             }
 
-            await fetch('/api/project/save', {
+            const saveRes = await fetch('/api/project/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -269,6 +279,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     path: 'root'
                 })
             });
+            if (!checkAuth(saveRes)) return;
+
             const tabName = document.getElementById('active-file-name');
             if (tabName && currentFile === filename) {
                 const originalText = tabName.innerText;
@@ -280,11 +292,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function deleteFileFromCloud(filename) {
         try {
-            await fetch('/api/project/delete', {
+            const res = await fetch('/api/project/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: filename, path: 'root' })
             });
+            checkAuth(res);
         } catch (e) {}
     }
 
@@ -584,6 +597,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: codeToRun, type: type })
             });
+            
+            if (!checkAuth(response)) return;
+
             const data = await response.json();
             
             if (data.success) {
@@ -1114,6 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: codeText, type: type })
             });
+            if (!checkAuth(response)) return;
             const data = await response.json();
             if (data.success) {
                 const overlay = document.getElementById('diagram-overlay');
@@ -1144,6 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: codeText, type: 'mermaid' })
             });
+            if (!checkAuth(response)) return;
             const data = await response.json();
             if (data.success) {
                 const overlay = document.getElementById('diagram-overlay');
@@ -1269,6 +1287,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetChatState();
         try {
             const res = await fetch('/dardcorchat/ai/new-chat', { method: 'POST' });
+            if (!checkAuth(res)) return;
             const data = await res.json();
             if (data.success) {
                 const newId = data.redirectUrl.split('/').pop();
@@ -1295,6 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             const res = await fetch(`/api/chat/${id}`);
+            if (!checkAuth(res)) return;
             if (!res.ok) throw new Error('Network error');
             const data = await res.json();
             
@@ -1422,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (role === 'bot' && text !== '...loading_placeholder...') {
             const body = div.querySelector('.markdown-body');
-            if (body && window.renderMathInElement) { renderMathInElement(body, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false }); }
+            if (body && window.renderMathInElement) { renderMathInElement(body, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }, { left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }], throwOnError: false }); }
             if (body && typeof hljs !== 'undefined') { body.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el)); }
         }
         return div;
@@ -1474,6 +1494,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const response = await fetch('/dardcorchat/ai/chat-stream', { method: 'POST', body: fd, signal: abortController.signal });
+            if (!checkAuth(response)) return;
             if (!response.ok) throw new Error("Server Error");
             loaderDiv.remove();
             
@@ -1542,6 +1563,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         if (typeof marked !== 'undefined') {
                             botContent.innerHTML = marked.parse(tempFormatted);
+                            if (window.renderMathInElement) { renderMathInElement(botContent, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }, { left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }], throwOnError: false }); }
                             if (typeof hljs !== 'undefined') botContent.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
                         }
                     }
@@ -1607,6 +1629,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (accumulatedAnswer && mainContainer) {
                 mainContainer.classList.remove('hidden');
                 botContent.innerHTML = marked.parse(accumulatedAnswer);
+                if (window.renderMathInElement) { renderMathInElement(botContent, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }, { left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }], throwOnError: false }); }
                 if (typeof hljs !== 'undefined') botContent.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
             }
             
@@ -1631,19 +1654,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function initHighlight() { 
-        document.querySelectorAll('.message-bubble-container pre code').forEach(el => { if (typeof hljs !== 'undefined') hljs.highlightElement(el); }); 
         document.querySelectorAll('.message-bubble-container .raw-message-content').forEach(raw => { 
-            const target = raw.nextElementSibling?.querySelector('.markdown-body') || raw.nextElementSibling; 
-            if (target && (target.classList.contains('markdown-body') || target.querySelector('.markdown-body'))) { 
-                const mdBody = target.classList.contains('markdown-body') ? target : target.querySelector('.markdown-body');
-                if (mdBody && typeof marked !== 'undefined') { 
-                    const parsed = parseMessageContent(String(raw.value || ''));
-                    mdBody.innerHTML = marked.parse(parsed.answer); 
-                    if (window.renderMathInElement) renderMathInElement(mdBody, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false }); 
-                    mdBody.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
-                } 
+            const container = raw.nextElementSibling;
+            if (!container) return;
+            const mdBody = container.querySelector('.markdown-body');
+            
+            if (mdBody && mdBody.innerHTML.trim() === '') { 
+                const parsed = parseMessageContent(raw.value || '');
+                if (typeof marked !== 'undefined') {
+                    mdBody.innerHTML = marked.parse(parsed.answer);
+                } else {
+                    mdBody.innerText = parsed.answer;
+                }
             } 
-        }); 
+        });
+
+        document.querySelectorAll('.markdown-body').forEach(body => {
+            if (window.renderMathInElement) {
+                try {
+                    renderMathInElement(body, { 
+                        delimiters: [
+                            { left: '$$', right: '$$', display: true }, 
+                            { left: '$', right: '$', display: false }, 
+                            { left: '\\[', right: '\\]', display: true }, 
+                            { left: '\\(', right: '\\)', display: false }
+                        ], 
+                        throwOnError: false 
+                    });
+                } catch (e) { console.error("KaTeX Error:", e); }
+            }
+
+            if (typeof hljs !== 'undefined') {
+                body.querySelectorAll('pre code').forEach(el => {
+                    if (!el.dataset.highlighted) {
+                        hljs.highlightElement(el);
+                        el.dataset.highlighted = "true";
+                    }
+                });
+            }
+        });
     }
 
     if (messageList) { 
@@ -1732,6 +1781,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!newTitle || !chatToEdit) return;
         try {
             const res = await fetch('/dardcorchat/ai/rename-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: chatToEdit, newTitle }) });
+            if (!checkAuth(res)) return;
             if (res.ok) {
                 const titleEl = document.getElementById(`title-${chatToEdit}`);
                 const rawInput = document.getElementById(`raw-title-${chatToEdit}`);
@@ -1752,6 +1802,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!chatToDelete) return;
         try {
             const res = await fetch('/dardcorchat/ai/delete-chat-history', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: chatToDelete }) });
+            if (!checkAuth(res)) return;
             if (res.ok) {
                 const item = document.getElementById(`chat-item-${chatToDelete}`);
                 if (item) item.remove();

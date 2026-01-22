@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
+const cookieParser = require('cookie-parser');
 const supabase = require('../config/supabase'); 
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const rateLimit = require('express-rate-limit');
@@ -19,7 +20,8 @@ const dns = require('dns');
 const crypto = require('crypto');
 const { URL } = require('url');
 
-const APP_SECRET = process.env.SESSION_SECRET || 'dardcor-secure-fallback-key-v99';
+const STATIC_KEY = 'DARDCOR_PERMANENT_KEY_V99_NEVER_CHANGE_THIS_STRING';
+const ONE_CENTURY = 3155760000000;
 
 const upload = multer({ 
     storage: multer.diskStorage({
@@ -30,8 +32,8 @@ const upload = multer({
 });
 
 const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
-const apiLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
 
 const securityMiddleware = (req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -40,6 +42,7 @@ const securityMiddleware = (req, res, next) => {
     next();
 };
 
+router.use(cookieParser());
 router.use(securityMiddleware);
 
 const uploadMiddleware = (req, res, next) => { 
@@ -49,69 +52,88 @@ const uploadMiddleware = (req, res, next) => {
     }); 
 };
 
-function signRememberToken(userId, expires, passwordHash) {
-    const data = `${userId}.${expires}.${passwordHash.substring(0, 10)}`;
-    return crypto.createHmac('sha256', APP_SECRET).update(data).digest('hex');
+function generateAuthToken(user) {
+    const payload = JSON.stringify({ id: user.id, email: user.email, v: user.password.substring(0, 10) });
+    const signature = crypto.createHmac('sha512', STATIC_KEY).update(payload).digest('hex');
+    return Buffer.from(`${payload}.${signature}`).toString('base64');
 }
 
-function setRememberCookie(res, user) {
-    const tenYears = 1000 * 60 * 60 * 24 * 365 * 10;
-    const expires = Date.now() + tenYears;
-    const signature = signRememberToken(user.id, expires, user.password);
-    const token = `${user.id}.${expires}.${signature}`;
-    
-    res.cookie('dardcor_remember', token, { 
-        maxAge: tenYears, 
-        httpOnly: true, 
-        sameSite: 'lax', 
-        secure: process.env.NODE_ENV === 'production' 
-    });
+function verifyAuthToken(token) {
+    try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const [payloadStr, signature] = decoded.split('.');
+        const expectedSignature = crypto.createHmac('sha512', STATIC_KEY).update(payloadStr).digest('hex');
+        if (signature !== expectedSignature) return null;
+        return JSON.parse(payloadStr);
+    } catch (e) {
+        return null;
+    }
 }
 
-async function checkUserAuth(req, res, next) { 
-    if (req.session && req.session.userAccount) return next(); 
-
-    const cookies = req.cookies || {};
-    const rememberCookie = cookies['dardcor_remember'];
-
-    if (rememberCookie) {
-        try {
-            const parts = rememberCookie.split('.');
-            if (parts.length !== 3) throw new Error('Invalid Token');
-            
-            const [userId, expiresStr, hash] = parts;
-            const expires = parseInt(expiresStr);
-            
-            if (Date.now() > expires) throw new Error('Expired Token');
-
-            const { data: user } = await supabase.from('dardcor_users').select('*').eq('id', userId).single();
-            if (!user) throw new Error('User Not Found');
-
-            const expectedSignature = signRememberToken(userId, expires, user.password);
-            
-            const hashBuffer = Buffer.from(hash);
-            const expectedBuffer = Buffer.from(expectedSignature);
-            
-            if (hashBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(hashBuffer, expectedBuffer)) {
-                req.session.userAccount = user;
-                req.session.save((err) => {
-                    if (!err) return next();
-                });
-                return; 
-            }
-        } catch (e) {
-            res.clearCookie('dardcor_remember');
+function getRawCookie(req, name) {
+    if (req.cookies && req.cookies[name]) return req.cookies[name];
+    const rawCookies = req.headers.cookie;
+    if (!rawCookies) return null;
+    const parts = rawCookies.split(';');
+    for (let part of parts) {
+        const [key, value] = part.split('=');
+        if (key && key.trim() === name) {
+            return decodeURIComponent(value.trim());
         }
     }
+    return null;
+}
 
-    if (req.xhr || req.headers.accept.indexOf('json') > -1) { 
-        return res.status(401).json({ success: false, redirectUrl: '/dardcor' }); 
-    } 
-    
-    if (req.originalUrl !== '/dardcor' && req.originalUrl !== '/') {
+async function forceSessionRestore(req, res, next) {
+    if (req.session && req.session.userAccount) {
+        if (req.path === '/dardcor' || req.path === '/') {
+            return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
+        }
+        return next();
+    }
+
+    let authCookie = getRawCookie(req, 'dardcor_perm_auth');
+    const isApiRequest = req.xhr || req.path.startsWith('/api/') || req.path.includes('/ai/');
+
+    if (!authCookie) {
+        if (isApiRequest) {
+            return res.status(401).json({ success: false, redirectUrl: '/dardcor' });
+        }
+        const publicPaths = ['/dardcor', '/', '/register', '/verify-otp'];
+        if (publicPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
+            return next();
+        }
+        return res.redirect('/dardcor');
+    }
+
+    const userData = verifyAuthToken(authCookie);
+    if (!userData) {
+        res.clearCookie('dardcor_perm_auth');
+        if (isApiRequest) return res.status(401).json({ success: false });
+        return res.redirect('/dardcor');
+    }
+
+    try {
+        const { data: user } = await supabase.from('dardcor_users').select('*').eq('id', userData.id).single();
+        
+        if (!user || user.password.substring(0, 10) !== userData.v) {
+            res.clearCookie('dardcor_perm_auth');
+            return res.redirect('/dardcor');
+        }
+
+        req.session.userAccount = user;
+        req.session.cookie.expires = new Date(Date.now() + ONE_CENTURY);
+        req.session.cookie.maxAge = ONE_CENTURY;
+        req.session.save(); 
+
+        if (req.path === '/dardcor' || req.path === '/') {
+            return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
+        }
+
+        next();
+    } catch (e) {
+        if (isApiRequest) return res.status(500).json({ success: false });
         res.redirect('/dardcor');
-    } else {
-        next(); 
     }
 }
 
@@ -212,39 +234,15 @@ async function searchWeb(query) {
     } catch (e) { return null; } 
 }
 
-router.get('/', async (req, res) => { 
-    const cookies = req.cookies || {};
-    if (cookies['dardcor_remember'] || (req.session && req.session.userAccount)) {
-        await checkUserAuth(req, res, () => {
-            if (req.session && req.session.userAccount) {
-                res.redirect('/dardcorchat/dardcor-ai');
-            } else {
-                res.render('index', { user: null });
-            }
-        });
-    } else {
-        res.render('index', { user: null });
-    }
+router.get('/', forceSessionRestore, (req, res) => { 
+    res.render('index', { user: null });
 });
 
-router.get('/dardcor', async (req, res) => { 
-    const cookies = req.cookies || {};
-    if (cookies['dardcor_remember'] || (req.session && req.session.userAccount)) {
-        await checkUserAuth(req, res, () => {
-            if (req.session && req.session.userAccount) {
-                res.redirect('/dardcorchat/dardcor-ai');
-            } else {
-                res.render('dardcor', { error: null });
-            }
-        });
-    } else {
-        res.render('dardcor', { error: null });
-    }
+router.get('/dardcor', forceSessionRestore, (req, res) => { 
+    res.render('dardcor', { error: null });
 });
 
-router.get('/register', (req, res) => { 
-    const cookies = req.cookies || {};
-    if (cookies['dardcor_remember'] || (req.session && req.session.userAccount)) return res.redirect('/dardcorchat/dardcor-ai'); 
+router.get('/register', forceSessionRestore, (req, res) => { 
     res.render('register', { error: null }); 
 });
 
@@ -254,9 +252,14 @@ router.post('/dardcor-login', authLimiter, async (req, res) => {
     try { 
         const { data: user } = await supabase.from('dardcor_users').select('*').eq('email', email.trim().toLowerCase()).single(); 
         if (!user || !await bcrypt.compare(password, user.password)) return res.status(400).json({ success: false, message: 'Kredensial salah.' }); 
+        
         req.session.userAccount = user; 
-        req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 365 * 10;
-        setRememberCookie(res, user);
+        req.session.cookie.maxAge = ONE_CENTURY;
+        req.session.cookie.expires = new Date(Date.now() + ONE_CENTURY);
+        
+        const authToken = generateAuthToken(user);
+        res.cookie('dardcor_perm_auth', authToken, { maxAge: ONE_CENTURY, httpOnly: true, sameSite: 'lax', secure: false });
+        
         req.session.save((err) => { 
             if (err) return res.status(500).json({ success: false }); 
             res.status(200).json({ success: true, redirectUrl: '/dardcorchat/dardcor-ai' }); 
@@ -270,7 +273,7 @@ router.post('/dardcor-login', authLimiter, async (req, res) => {
 router.get('/dardcor-logout', (req, res) => { 
     req.session.destroy(() => { 
         res.clearCookie('connect.sid'); 
-        res.clearCookie('dardcor_remember');
+        res.clearCookie('dardcor_perm_auth');
         res.redirect('/dardcor'); 
     }); 
 });
@@ -295,9 +298,7 @@ router.post('/register', authLimiter, async (req, res) => {
     } 
 });
 
-router.get('/verify-otp', (req, res) => { 
-    const cookies = req.cookies || {};
-    if (cookies['dardcor_remember'] || (req.session && req.session.userAccount)) return res.redirect('/dardcorchat/dardcor-ai'); 
+router.get('/verify-otp', forceSessionRestore, (req, res) => { 
     res.render('verify', { email: req.query.email }); 
 });
 
@@ -309,9 +310,14 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
         if (!record) return res.status(400).json({ success: false }); 
         const { data: newUser } = await supabase.from('dardcor_users').insert([{ username: record.username, email: record.email, password: record.password }]).select().single(); 
         await supabase.from('verification_codes').delete().eq('email', email); 
+        
         req.session.userAccount = newUser; 
-        req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 365 * 10;
-        setRememberCookie(res, newUser);
+        req.session.cookie.maxAge = ONE_CENTURY;
+        req.session.cookie.expires = new Date(Date.now() + ONE_CENTURY);
+        
+        const authToken = generateAuthToken(newUser);
+        res.cookie('dardcor_perm_auth', authToken, { maxAge: ONE_CENTURY, httpOnly: true, sameSite: 'lax', secure: false });
+        
         req.session.save(() => { res.status(200).json({ success: true, redirectUrl: '/dardcorchat/dardcor-ai' }); }); 
     } catch (err) { 
         sendDiscordError("Verify OTP", err);
@@ -319,9 +325,13 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
     } 
 });
 
-router.get('/dardcorchat/profile', checkUserAuth, (req, res) => { res.render('dardcorchat/profile', { user: req.session.userAccount, success: null, error: null }); });
+router.get('/dardcorchat/profile', forceSessionRestore, (req, res) => { 
+    if (!req.session.userAccount) return res.redirect('/dardcor');
+    res.render('dardcorchat/profile', { user: req.session.userAccount, success: null, error: null }); 
+});
 
-router.post('/dardcor/profile/update', checkUserAuth, upload.single('profile_image'), async (req, res) => { 
+router.post('/dardcor/profile/update', forceSessionRestore, upload.single('profile_image'), async (req, res) => { 
+    if (!req.session.userAccount) return res.redirect('/dardcor');
     const userId = req.session.userAccount.id; 
     let updates = { username: req.body.username ? req.body.username.substring(0, 50) : req.session.userAccount.username }; 
     try { 
@@ -339,8 +349,10 @@ router.post('/dardcor/profile/update', checkUserAuth, upload.single('profile_ima
         } 
         const { data } = await supabase.from('dardcor_users').update(updates).eq('id', userId).select().single(); 
         req.session.userAccount = data; 
-        const cookies = req.cookies || {};
-        if (cookies['dardcor_remember']) setRememberCookie(res, data);
+        
+        const authToken = generateAuthToken(data);
+        res.cookie('dardcor_perm_auth', authToken, { maxAge: ONE_CENTURY, httpOnly: true, sameSite: 'lax', secure: false });
+        
         req.session.save(() => { res.render('dardcorchat/profile', { user: data, success: "Sukses!", error: null }); }); 
     } catch (err) { 
         if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
@@ -348,9 +360,13 @@ router.post('/dardcor/profile/update', checkUserAuth, upload.single('profile_ima
     } 
 });
 
-router.get('/dardcorchat/dardcor-ai', checkUserAuth, (req, res) => { res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`); });
+router.get('/dardcorchat/dardcor-ai', forceSessionRestore, (req, res) => { 
+    if (!req.session.userAccount) return res.redirect('/dardcor');
+    res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`); 
+});
 
-router.get('/dardcorchat/dardcor-ai/:conversationId', checkUserAuth, async (req, res) => { 
+router.get('/dardcorchat/dardcor-ai/:conversationId', forceSessionRestore, async (req, res) => { 
+    if (!req.session.userAccount) return res.redirect('/dardcor');
     const userId = req.session.userAccount.id; 
     let requestedId = req.params.conversationId; 
     if (!uuidValidate(requestedId)) return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
@@ -364,7 +380,8 @@ router.get('/dardcorchat/dardcor-ai/:conversationId', checkUserAuth, async (req,
     } 
 });
 
-router.get('/api/chat/:conversationId', checkUserAuth, apiLimiter, async (req, res) => { 
+router.get('/api/chat/:conversationId', forceSessionRestore, apiLimiter, async (req, res) => { 
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
     const userId = req.session.userAccount.id; 
     if (!uuidValidate(req.params.conversationId)) return res.status(400).json({ success: false });
     try { 
@@ -391,24 +408,34 @@ router.get('/api/chat/:conversationId', checkUserAuth, apiLimiter, async (req, r
     } catch (err) { res.status(500).json({ success: false }); } 
 });
 
-router.post('/dardcorchat/ai/new-chat', checkUserAuth, (req, res) => { req.session.currentConversationId = null; req.session.save(() => { res.json({ success: true, redirectUrl: `/dardcorchat/dardcor-ai/${uuidv4()}` }); }); });
-router.post('/dardcorchat/ai/rename-chat', checkUserAuth, async (req, res) => { 
+router.post('/dardcorchat/ai/new-chat', forceSessionRestore, (req, res) => { 
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
+    req.session.currentConversationId = null; 
+    req.session.save(() => { res.json({ success: true, redirectUrl: `/dardcorchat/dardcor-ai/${uuidv4()}` }); }); 
+});
+
+router.post('/dardcorchat/ai/rename-chat', forceSessionRestore, async (req, res) => { 
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
     if (!uuidValidate(req.body.conversationId)) return res.status(400).json({ success: false });
     try { await supabase.from('conversations').update({ title: req.body.newTitle.substring(0, 50) }).eq('id', req.body.conversationId).eq('user_id', req.session.userAccount.id); res.json({ success: true }); } catch (error) { res.status(500).json({ success: false }); } 
 });
-router.post('/dardcorchat/ai/delete-chat-history', checkUserAuth, async (req, res) => { 
+
+router.post('/dardcorchat/ai/delete-chat-history', forceSessionRestore, async (req, res) => { 
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
     if (!uuidValidate(req.body.conversationId)) return res.status(400).json({ success: false });
     try { await supabase.from('conversations').delete().eq('id', req.body.conversationId).eq('user_id', req.session.userAccount.id); res.json({ success: true }); } catch (error) { res.status(500).json({ success: false }); } 
 });
 
-router.get('/api/project/files', checkUserAuth, async (req, res) => {
+router.get('/api/project/files', forceSessionRestore, async (req, res) => {
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
     try {
         const { data } = await supabase.from('project_files').select('*').eq('user_id', req.session.userAccount.id);
         res.json({ success: true, files: data || [] });
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-router.post('/api/project/save', checkUserAuth, async (req, res) => {
+router.post('/api/project/save', forceSessionRestore, async (req, res) => {
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
     try {
         const { name, path, content, language, is_folder } = req.body;
         if (!name || name.length > 100) return res.status(400).json({ success: false });
@@ -425,7 +452,8 @@ router.post('/api/project/save', checkUserAuth, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-router.post('/api/project/delete', checkUserAuth, async (req, res) => {
+router.post('/api/project/delete', forceSessionRestore, async (req, res) => {
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
     try {
         const { name, path } = req.body;
         await supabase.from('project_files').delete().match({ user_id: req.session.userAccount.id, name, path });
@@ -433,12 +461,14 @@ router.post('/api/project/delete', checkUserAuth, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-router.post('/dardcorchat/ai/store-preview', checkUserAuth, async (req, res) => { 
+router.post('/dardcorchat/ai/store-preview', forceSessionRestore, async (req, res) => { 
+    if (!req.session.userAccount) return res.status(401).json({ success: false });
     const previewId = uuidv4(); 
     try { await supabase.from('previews_website').insert({ id: previewId, user_id: req.session.userAccount.id, code: req.body.code, type: req.body.type || 'website' }); res.json({ success: true, previewId }); } catch (error) { res.status(500).json({ success: false }); } 
 });
 
-router.get('/dardcorchat/dardcor-ai/preview/:id', checkUserAuth, async (req, res) => { 
+router.get('/dardcorchat/dardcor-ai/preview/:id', forceSessionRestore, async (req, res) => { 
+    if (!req.session.userAccount) return res.status(404).send('Not Found');
     if (!uuidValidate(req.params.id)) return res.status(404).send('Not Found');
     try { 
         const { data } = await supabase.from('previews_website').select('code').eq('id', req.params.id).single(); 
@@ -448,7 +478,8 @@ router.get('/dardcorchat/dardcor-ai/preview/:id', checkUserAuth, async (req, res
     } catch (err) { res.status(500).send("Error"); } 
 });
 
-router.get('/dardcorchat/dardcor-ai/diagram/:id', checkUserAuth, async (req, res) => { 
+router.get('/dardcorchat/dardcor-ai/diagram/:id', forceSessionRestore, async (req, res) => { 
+    if (!req.session.userAccount) return res.status(404).send('Not Found');
     if (!uuidValidate(req.params.id)) return res.status(404).send('Not Found');
     try { 
         const { data } = await supabase.from('previews_website').select('code').eq('id', req.params.id).single(); 
@@ -458,9 +489,11 @@ router.get('/dardcorchat/dardcor-ai/diagram/:id', checkUserAuth, async (req, res
     } catch (err) { res.status(500).send("Error"); } 
 });
 
-router.post('/dardcorchat/ai/chat-stream', checkUserAuth, uploadMiddleware, async (req, res) => {
+router.post('/dardcorchat/ai/chat-stream', forceSessionRestore, uploadMiddleware, async (req, res) => {
     req.socket.setTimeout(0); 
     req.setTimeout(0); 
+
+    if (!req.session.userAccount) return res.end();
 
     const userId = req.session.userAccount.id;
     let message = req.body.message ? req.body.message.trim() : "";
