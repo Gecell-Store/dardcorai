@@ -325,7 +325,12 @@ router.get('/verify-otp', (req, res) => {
 router.get('/auth/google', async (req, res) => {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.get('host');
-    const fullUrl = `${protocol}://${host}/register`;
+    const referer = req.get('Referer') || '';
+    
+    let targetPath = '/register';
+    if (referer.includes('/dardcor')) targetPath = '/dardcor';
+    
+    const fullUrl = `${protocol}://${host}${targetPath}`;
     
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -334,7 +339,7 @@ router.get('/auth/google', async (req, res) => {
             queryParams: { access_type: 'offline', prompt: 'select_account' }
         }
     });
-    if (error) return res.redirect('/register?error=' + encodeURIComponent(error.message));
+    if (error) return res.redirect(`${targetPath}?error=` + encodeURIComponent(error.message));
     res.redirect(data.url);
 });
 
