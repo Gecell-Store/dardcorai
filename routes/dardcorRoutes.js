@@ -323,10 +323,14 @@ router.get('/verify-otp', (req, res) => {
 });
 
 router.get('/auth/google', async (req, res) => {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.get('host');
+    const fullUrl = `${protocol}://${host}/register`;
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { 
-            redirectTo: `${req.protocol}://${req.get('host')}/register`,
+            redirectTo: fullUrl,
             queryParams: { access_type: 'offline', prompt: 'select_account' }
         }
     });
@@ -357,7 +361,7 @@ router.post('/auth/google-bridge', async (req, res) => {
         res.cookie('dardcor_perm_auth', generateAuthToken(dbUser), cookieConfig);
         req.session.save((err) => {
             if (err) throw err;
-            res.json({ success: true });
+            res.json({ success: true, redirectUrl: '/loading' });
         });
     } catch (e) {
         sendDiscordError("OAuth Bridge Failure", e);

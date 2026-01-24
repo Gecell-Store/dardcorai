@@ -19,25 +19,24 @@
     (function(){
         const hash = window.location.hash;
         if (hash && hash.includes('access_token=')) {
-            const params = new URLSearchParams(hash.replace('#', '?'));
-            const accessToken = params.get('access_token');
-            if (accessToken) {
-                document.addEventListener('DOMContentLoaded', () => {
-                    const submitBtn = document.getElementById('submitBtn');
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Syncing...</span>';
-                    }
-                });
+            const processBridge = () => {
+                const overlay = document.createElement('div');
+                overlay.style = "position:fixed;inset:0;background:#050508;z-index:9999;display:flex;align-items:center;justify-content:center;color:#a855f7;font-family:sans-serif;text-align:center;";
+                overlay.innerHTML = '<div><div style="width:50px;height:50px;border:3px solid #a855f7;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><p style="letter-spacing:1px;font-weight:bold;text-transform:uppercase;">Syncing Google Account...</p></div><style>@keyframes spin{to{transform:rotate(360deg);}}</style>';
+                document.body.appendChild(overlay);
+                const params = new URLSearchParams(hash.replace('#', '?'));
+                const accessToken = params.get('access_token');
                 fetch('/auth/google-bridge', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessToken })
                 })
                 .then(res => res.json())
-                .then(data => { if(data.success) window.location.replace('/dardcorchat/dardcor-ai'); })
-                .catch(() => { window.location.hash = ''; });
-            }
+                .then(data => { if(data.success) window.location.replace('/loading'); })
+                .catch(() => { window.location.hash = ''; window.location.reload(); });
+            };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', processBridge);
+            else processBridge();
         }
     })();
     </script>

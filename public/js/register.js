@@ -22,22 +22,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnLoader = document.getElementById('btnLoader');
             const errorMessage = document.getElementById('errorMessage');
             
+            submitBtn.disabled = true;
+            btnText.innerText = 'Processing...';
+            btnLoader.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+            errorMessage.innerText = '';
+            
             const email = this.email.value.trim();
             const username = this.username.value.trim();
             const password = this.password.value;
 
-            errorMessage.classList.add('hidden');
-            errorMessage.innerText = '';
-
             if (!email || !username || !password) {
                 errorMessage.innerText = 'Semua data wajib diisi.';
                 errorMessage.classList.remove('hidden');
+                submitBtn.disabled = false;
+                btnText.innerText = 'Register';
+                btnLoader.classList.add('hidden');
                 return;
             }
-
-            submitBtn.disabled = true;
-            btnText.innerText = 'Processing...';
-            btnLoader.classList.remove('hidden');
 
             try {
                 const response = await fetch('/register', {
@@ -50,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    window.location.href = `/verify-otp?email=${encodeURIComponent(email)}`;
+                    window.location.replace(result.redirectUrl);
                 } else {
                     throw new Error(result.message || 'Registrasi gagal.');
                 }

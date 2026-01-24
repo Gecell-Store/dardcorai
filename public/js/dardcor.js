@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    window.location.replace(result.redirectUrl || '/dardcorchat/dardcor-ai');
+                    window.location.replace(result.redirectUrl);
                 } else {
                     throw new Error(result.message || 'Login gagal.');
                 }
