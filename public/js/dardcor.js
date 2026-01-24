@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMessage.innerText = '';
 
             if (!email || !password) {
-                errorMessage.innerText = 'Email dan Password harus diisi.';
+                errorMessage.innerText = 'Semua field wajib diisi.';
                 errorMessage.classList.remove('hidden');
                 return;
             }

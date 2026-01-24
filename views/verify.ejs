@@ -49,23 +49,22 @@
             <div class="text-purple-300/60 text-xs md:text-sm mb-6 relative z-10">
                 Kode OTP telah dikirim ke <br>
                 <span class="text-purple-300 font-medium break-all"><%= email %></span>
-                <br>
                 <div class="mt-4 p-3 bg-purple-900/10 border border-purple-500/20 rounded-lg text-left text-[11px] leading-relaxed">
-                    <p class="text-purple-200 font-bold mb-1"><i class="fas fa-info-circle mr-1"></i> Informasi Penting:</p>
+                    <p class="text-purple-200 font-bold mb-1"><i class="fas fa-info-circle mr-1"></i> Informasi:</p>
                     <ul class="list-disc list-inside space-y-1 text-purple-400/80">
-                        <li>Periksa folder <b>Spam</b> jika kode tidak ditemukan di kotak masuk.</li>
-                        <li>Jangan berikan kode ini kepada siapapun demi keamanan akun Anda.</li>
-                        <li>Sesi verifikasi akan kadaluarsa otomatis dalam 5 menit.</li>
+                        <li>Periksa folder <b>Spam</b> jika kode tidak ditemukan.</li>
+                        <li>Kode ini bersifat rahasia.</li>
+                        <li>Sesi berakhir dalam 5 menit.</li>
                     </ul>
                 </div>
             </div>
             <form id="otpForm" class="space-y-6 relative z-10" autocomplete="off">
                 <input type="hidden" id="userEmail" value="<%= email %>">
                 <div class="flex justify-center gap-2">
-                    <input type="tel" inputmode="numeric" maxlength="6" id="otp" class="otp-input w-full h-12 md:h-14 text-center text-xl md:text-2xl font-bold tracking-[0.5em] bg-[rgba(5,5,8,0.6)] border border-purple-900/30 rounded-xl text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none placeholder-purple-500/20 transition-all" placeholder="000000" autocomplete="one-time-code" pattern="[0-9]*" required>
+                    <input type="tel" inputmode="numeric" maxlength="6" id="otp" class="otp-input w-full h-12 md:h-14 text-center text-xl md:text-2xl font-bold tracking-[0.5em] bg-[rgba(5,5,8,0.6)] border border-purple-900/30 rounded-xl text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none placeholder-purple-500/20 transition-all" placeholder="000000" required>
                 </div>
-                <p id="msg" class="text-xs text-red-400 hidden bg-red-900/10 py-1.5 rounded border border-red-500/20"></p>
-                <button type="submit" id="btnVerify" class="w-full py-3 md:py-3.5 rounded-xl bg-[#2e1065] hover:bg-purple-900 text-white font-bold transition-all border border-purple-700 hover:border-purple-500 shadow-[0_0_15px_rgba(88,28,135,0.4)] flex justify-center items-center gap-2 text-sm md:text-base transform hover:scale-[1.02]">
+                <p id="msg" class="text-xs text-red-400 hidden bg-red-900/10 py-1.5 rounded border border-red-500/20 text-center"></p>
+                <button type="submit" id="btnVerify" class="w-full py-3 md:py-3.5 rounded-xl bg-[#2e1065] hover:bg-purple-900 text-white font-bold border border-purple-700 transition-all flex justify-center items-center gap-2">
                     <span>Verifikasi</span>
                     <i class="fas fa-arrow-right"></i>
                 </button>

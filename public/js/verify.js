@@ -35,41 +35,23 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/verify-otp', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ email, otp: otpValue }) 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, otp: otpValue })
                 });
 
-                if (res.status === 429) {
-                    throw new Error('Terlalu banyak percobaan. Tunggu beberapa saat.');
-                }
-
                 const data = await res.json();
-
                 if(data.success) {
                     btn.innerHTML = '<i class="fas fa-check"></i><span>Berhasil!</span>';
-                    btn.classList.remove('bg-[#2e1065]', 'hover:bg-purple-900', 'border-purple-700');
-                    btn.classList.add('bg-green-600', 'border-green-500');
-                    
-                    msg.innerText = "Mengalihkan ke Dardcor AI...";
-                    msg.classList.remove('text-red-400', 'hidden');
-                    msg.classList.add('text-green-400', 'mt-2', 'block');
-                    
-                    setTimeout(() => {
-                        window.location.replace(data.redirectUrl || '/dardcorchat/dardcor-ai');
-                    }, 1000);
+                    btn.classList.replace('bg-[#2e1065]', 'bg-green-600');
+                    window.location.replace('/loading');
                 } else {
-                    throw new Error(data.message || 'Kode OTP salah atau kadaluarsa.');
+                    throw new Error(data.message || 'OTP tidak valid.');
                 }
             } catch (err) {
                 msg.innerText = err.message;
-                msg.classList.remove('hidden', 'text-green-400');
-                msg.classList.add('text-red-400', 'mt-2', 'block');
-                
+                msg.classList.remove('hidden');
                 btn.disabled = false;
                 btn.innerHTML = originalBtnContent;
-                btn.classList.remove('bg-green-600', 'border-green-500');
-                btn.classList.add('bg-[#2e1065]', 'border-purple-700');
             }
         });
     }

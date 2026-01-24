@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <title>Dardcor AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      body { background-color: #050508; font-family: "Inter", sans-serif; overflow: hidden; }
+      @keyframes orbit-1 { 0% { transform: rotate3d(1, 1, 1, 0deg); } 100% { transform: rotate3d(1, 1, 1, 360deg); } }
+      @keyframes orbit-2 { 0% { transform: rotate3d(1, -1, 1, 0deg); } 100% { transform: rotate3d(1, -1, 1, 360deg); } }
+      @keyframes orbit-3 { 0% { transform: rotate3d(-1, 1, 1, 0deg); } 100% { transform: rotate3d(-1, 1, 1, 360deg); } }
+      @keyframes orbit-4 { 0% { transform: rotate3d(1, 1, -1, 0deg); } 100% { transform: rotate3d(1, 1, -1, 360deg); } }
+      @keyframes orbit-5 { 0% { transform: rotate3d(0, 1, 1, 0deg); } 100% { transform: rotate3d(0, 1, 1, 360deg); } }
+      @keyframes orbit-6 { 0% { transform: rotate3d(1, 0, 0, 0deg); } 100% { transform: rotate3d(1, 0, 0, 360deg); } }
+      .animate-orbit-1 { animation: orbit-1 6s linear infinite; }
+      .animate-orbit-2 { animation: orbit-2 7s linear infinite; }
+      .animate-orbit-3 { animation: orbit-3 8s linear infinite; }
+      .animate-orbit-4 { animation: orbit-4 9s linear infinite; }
+      .animate-orbit-5 { animation: orbit-5 10s linear infinite; }
+      .animate-orbit-6 { animation: orbit-6 11s linear infinite; }
+      .typing-cursor::after { content: '|'; animation: blink 1s step-end infinite; }
+      @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center relative overflow-hidden">
+    <div class="flex flex-col items-center relative z-10">
+        <div class="relative w-48 h-48 md:w-56 md:h-56 flex items-center justify-center mb-8 perspective-[1000px]">
+            <div class="absolute inset-0 bg-purple-900/20 rounded-full blur-3xl animate-pulse"></div>
+            <div class="absolute w-[110%] h-[110%] rounded-full border border-purple-500/60 animate-orbit-1 border-t-transparent border-l-transparent"></div>
+            <div class="absolute w-[110%] h-[110%] rounded-full border border-fuchsia-500/50 animate-orbit-2 border-b-transparent border-r-transparent"></div>
+            <div class="absolute w-[110%] h-[110%] rounded-full border border-violet-500/50 animate-orbit-3 border-t-transparent border-r-transparent"></div>
+            <div class="absolute w-[110%] h-[110%] rounded-full border border-indigo-500/40 animate-orbit-4 border-b-transparent border-l-transparent"></div>
+            <div class="absolute w-[110%] h-[110%] rounded-full border border-pink-500/40 animate-orbit-5 border-l-transparent border-r-transparent"></div>
+            <div class="absolute w-[110%] h-[110%] rounded-full border border-cyan-500/40 animate-orbit-6 border-t-transparent border-b-transparent"></div>
+            <div class="w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden border-2 border-purple-400/20 bg-[#050508] relative z-10 shadow-[0_0_40px_rgba(147,51,234,0.3)]">
+                <img src="/logo.png" alt="Logo" class="relative w-full h-full object-cover opacity-90" />
+            </div>
+        </div>
+        <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-200 to-purple-400 mb-2">Dardcor AI</h1>
+        <p id="typing-text" class="text-sm text-purple-300/70 typing-cursor h-6"></p>
+    </div>
+    <script src="/js/loading.js"></script>
+</body>
+</html>

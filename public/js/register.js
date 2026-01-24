@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleBtn = document.getElementById('toggleRegPassword');
     const passwordInput = document.getElementById('regPassword');
     const registerForm = document.getElementById('registerForm');
-    const googleLoginBtn = document.getElementById('googleLoginBtn');
 
     if (toggleBtn && passwordInput) {
         const icon = toggleBtn.querySelector('i');
@@ -10,15 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
             passwordInput.setAttribute('type', type);
-            icon.className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+            icon.className = type === 'password' ? 'fas fa-eye text-xs' : 'fas fa-eye-slash text-xs';
             passwordInput.focus();
-        });
-    }
-
-    if (googleLoginBtn) {
-        googleLoginBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            window.location.href = '/auth/google';
         });
     }
 
@@ -37,28 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMessage.classList.add('hidden');
             errorMessage.innerText = '';
 
-            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            if (!emailRegex.test(email)) {
-                errorMessage.innerText = 'Format email tidak valid.';
-                errorMessage.classList.remove('hidden');
-                return;
-            }
-
-            const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
-            if (!usernameRegex.test(username)) {
-                errorMessage.innerText = 'Username hanya boleh huruf, angka, garis bawah (3-20 karakter).';
-                errorMessage.classList.remove('hidden');
-                return;
-            }
-
-            if (password.length < 8) {
-                errorMessage.innerText = 'Password minimal 8 karakter.';
+            if (!email || !username || !password) {
+                errorMessage.innerText = 'Semua data wajib diisi.';
                 errorMessage.classList.remove('hidden');
                 return;
             }
 
             submitBtn.disabled = true;
-            btnText.innerText = 'Memproses...';
+            btnText.innerText = 'Processing...';
             btnLoader.classList.remove('hidden');
 
             try {
@@ -69,14 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ email, username, password })
                 });
 
-                if (response.status === 429) {
-                    throw new Error('Terlalu banyak permintaan. Coba lagi nanti.');
-                }
-
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    window.location.href = result.redirectUrl || `/verify-otp?email=${encodeURIComponent(email)}`;
+                    window.location.href = `/verify-otp?email=${encodeURIComponent(email)}`;
                 } else {
                     throw new Error(result.message || 'Registrasi gagal.');
                 }
