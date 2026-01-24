@@ -2,15 +2,39 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https:;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#050508">
-    <title>Dardcor AI - Login</title>
+    <title>Dardcor AI</title>
     <link rel="icon" href="/logo.png">
     <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+    (function(){
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token=')) {
+            const params = new URLSearchParams(hash.replace('#', '?'));
+            const accessToken = params.get('access_token');
+            if (accessToken) {
+                document.body.innerHTML = '<div style="background:#050508;height:100vh;display:flex;align-items:center;justify-content:center;color:#a855f7;font-family:sans-serif;">Sedang menyinkronkan akun Google...</div>';
+                fetch('/auth/bridge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken })
+                })
+                .then(res => res.json())
+                .then(data => { if(data.success) window.location.replace('/dardcorchat/dardcor-ai'); })
+                .catch(() => { window.location.hash = ''; });
+            }
+        }
+    })();
+    </script>
     <style>
         html, body { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; position: fixed; inset: 0; background-color: #050508; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         .scroll-container { height: 100%; width: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -71,6 +95,14 @@
                         <span>Sign In</span>
                         <div id="btnLoader" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin hidden"></div>
                     </button>
+                    <div class="relative py-4">
+                        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-purple-900/30"></div></div>
+                        <div class="relative flex justify-center text-xs uppercase"><span class="bg-[#0a0a12] px-2 text-purple-500/50 tracking-widest">Or continue with</span></div>
+                    </div>
+                    <a href="/auth/google" class="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl border border-white/10 flex items-center justify-center gap-3 transition-all transform hover:scale-[1.02]">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
+                        <span class="text-sm font-medium">Google Accounts</span>
+                    </a>
                 </form>
                 <div class="mt-6 md:mt-8 pt-6 border-t border-purple-900/30 text-center relative z-10">
                     <p class="text-purple-300/50 text-xs md:text-sm">Don't have an account? <a href="/register" class="text-purple-400 hover:text-white font-bold transition-colors">Register Now</a></p>

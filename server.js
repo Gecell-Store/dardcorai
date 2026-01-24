@@ -3,9 +3,16 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const pg = require('pg');
+const pgSession = require('connect-pg-simple')(session);
 const app = express();
 const port = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
+
+const pgPool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: isProduction ? { rejectUnauthorized: false } : false
+});
 
 app.set('trust proxy', 1);
 
@@ -13,18 +20,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '10mb' }));
 
-const sessionDuration = 100 * 365 * 24 * 60 * 60 * 1000;
+const ONE_CENTURY = 100 * 365 * 24 * 60 * 60 * 1000;
 
 app.use(session({
     name: 'dardcor_session_id',
-    secret: process.env.SESSION_SECRET || 'dardcor_permanent_secret_key',
+    store: new pgSession({
+        pool: pgPool,
+        tableName: 'session',
+        createTableIfMissing: false
+    }),
+    secret: process.env.SESSION_SECRET || 'dardcor_permanent_secret_key_v99',
     resave: false,
     saveUninitialized: false,
     rolling: true,
     cookie: { 
         secure: isProduction, 
         sameSite: 'lax', 
-        maxAge: sessionDuration,
+        maxAge: ONE_CENTURY,
         path: '/',
         httpOnly: true
     }

@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function checkAuth(response) {
         if (response.status === 401) {
-            window.location.href = '/dardcor';
+            window.location.reload();
             return false;
         }
         return true;

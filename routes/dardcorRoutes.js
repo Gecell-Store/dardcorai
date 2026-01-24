@@ -20,7 +20,7 @@ const dns = require('dns');
 const crypto = require('crypto');
 const { URL } = require('url');
 
-const STATIC_KEY = 'DARDCOR_PERMANENT_KEY_V99_NEVER_CHANGE_THIS_STRING';
+const STATIC_KEY = process.env.SESSION_SECRET || 'DARDCOR_PERMANENT_KEY_V99_NEVER_CHANGE_THIS_STRING';
 const ONE_CENTURY = 3155760000000;
 
 const upload = multer({ 
@@ -39,6 +39,9 @@ const securityMiddleware = (req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     next();
 };
 
@@ -70,69 +73,77 @@ function verifyAuthToken(token) {
     }
 }
 
-function getRawCookie(req, name) {
-    if (req.cookies && req.cookies[name]) return req.cookies[name];
-    const rawCookies = req.headers.cookie;
-    if (!rawCookies) return null;
-    const parts = rawCookies.split(';');
-    for (let part of parts) {
-        const [key, value] = part.split('=');
-        if (key && key.trim() === name) {
-            return decodeURIComponent(value.trim());
-        }
-    }
-    return null;
-}
+const cookieConfig = {
+    maxAge: ONE_CENTURY,
+    httpOnly: true,
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production'
+};
 
-async function forceSessionRestore(req, res, next) {
+async function handleLoginCheck(req, res, renderPage) {
     if (req.session && req.session.userAccount) {
-        if (req.path === '/dardcor' || req.path === '/') {
-            return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
-        }
-        return next();
+        return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
     }
-
-    let authCookie = getRawCookie(req, 'dardcor_perm_auth');
-    const isApiRequest = req.xhr || req.path.startsWith('/api/') || req.path.includes('/ai/');
-
+    const authCookie = req.cookies['dardcor_perm_auth'];
     if (!authCookie) {
-        if (isApiRequest) {
-            return res.status(401).json({ success: false, redirectUrl: '/dardcor' });
-        }
-        const publicPaths = ['/dardcor', '/', '/register', '/verify-otp'];
-        if (publicPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
-            return next();
-        }
-        return res.redirect('/dardcor');
+        return res.render(renderPage, { error: null, user: null });
     }
-
     const userData = verifyAuthToken(authCookie);
     if (!userData) {
         res.clearCookie('dardcor_perm_auth');
-        if (isApiRequest) return res.status(401).json({ success: false });
+        return res.render(renderPage, { error: null, user: null });
+    }
+    try {
+        const { data: user } = await supabase.from('dardcor_users').select('*').eq('id', userData.id).maybeSingle();
+        if (user && user.password.substring(0, 10) === userData.v) {
+            req.session.userAccount = user;
+            req.session.cookie.maxAge = ONE_CENTURY;
+            res.cookie('dardcor_perm_auth', generateAuthToken(user), cookieConfig);
+            return req.session.save(() => {
+                res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
+            });
+        }
+        res.clearCookie('dardcor_perm_auth');
+        return res.render(renderPage, { error: null, user: null });
+    } catch (e) {
+        return res.render(renderPage, { error: null, user: null });
+    }
+}
+
+async function protectedRoute(req, res, next) {
+    if (req.session && req.session.userAccount) {
+        return next();
+    }
+    const authCookie = req.cookies['dardcor_perm_auth'];
+    if (!authCookie) {
+        if (req.xhr || req.path.includes('/api/') || req.path.includes('/ai/')) {
+            return res.status(401).json({ success: false, redirectUrl: '/dardcor' });
+        }
         return res.redirect('/dardcor');
     }
-
+    const userData = verifyAuthToken(authCookie);
+    if (!userData) {
+        res.clearCookie('dardcor_perm_auth');
+        if (req.xhr || req.path.includes('/api/') || req.path.includes('/ai/')) {
+            return res.status(401).json({ success: false });
+        }
+        return res.redirect('/dardcor');
+    }
     try {
-        const { data: user } = await supabase.from('dardcor_users').select('*').eq('id', userData.id).single();
-        
-        if (!user || user.password.substring(0, 10) !== userData.v) {
-            res.clearCookie('dardcor_perm_auth');
-            return res.redirect('/dardcor');
+        const { data: user } = await supabase.from('dardcor_users').select('*').eq('id', userData.id).maybeSingle();
+        if (user && user.password.substring(0, 10) === userData.v) {
+            req.session.userAccount = user;
+            req.session.cookie.maxAge = ONE_CENTURY;
+            res.cookie('dardcor_perm_auth', generateAuthToken(user), cookieConfig);
+            return req.session.save(() => next());
         }
-
-        req.session.userAccount = user;
-        req.session.cookie.expires = new Date(Date.now() + ONE_CENTURY);
-        req.session.cookie.maxAge = ONE_CENTURY;
-        req.session.save(); 
-
-        if (req.path === '/dardcor' || req.path === '/') {
-            return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
+        res.clearCookie('dardcor_perm_auth');
+        if (req.xhr || req.path.includes('/api/') || req.path.includes('/ai/')) {
+            return res.status(401).json({ success: false });
         }
-
-        next();
+        res.redirect('/dardcor');
     } catch (e) {
-        if (isApiRequest) return res.status(500).json({ success: false });
         res.redirect('/dardcor');
     }
 }
@@ -234,32 +245,78 @@ async function searchWeb(query) {
     } catch (e) { return null; } 
 }
 
-router.get('/', forceSessionRestore, (req, res) => { 
-    res.render('index', { user: null });
+router.get('/', (req, res) => handleLoginCheck(req, res, 'index'));
+router.get('/dardcor', (req, res) => handleLoginCheck(req, res, 'dardcor'));
+router.get('/register', (req, res) => handleLoginCheck(req, res, 'register'));
+
+router.post('/auth/bridge', async (req, res) => {
+    const { accessToken } = req.body;
+    try {
+        const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+        if (error || !user) return res.status(401).json({ success: false });
+        const { data: dbUser } = await supabase.from('dardcor_users').select('*').eq('email', user.email).maybeSingle();
+        let finalUser = dbUser;
+        if (!dbUser) {
+            const { data: newUser } = await supabase.from('dardcor_users').insert([{ 
+                id: user.id, 
+                email: user.email, 
+                username: user.user_metadata.full_name || user.email.split('@')[0],
+                password: await bcrypt.hash(uuidv4(), 12),
+                profile_image: user.user_metadata.avatar_url
+            }]).select().single();
+            finalUser = newUser;
+        }
+        req.session.userAccount = finalUser;
+        res.cookie('dardcor_perm_auth', generateAuthToken(finalUser), cookieConfig);
+        req.session.save(() => res.json({ success: true }));
+    } catch (e) { res.status(500).json({ success: false }); }
 });
 
-router.get('/dardcor', forceSessionRestore, (req, res) => { 
-    res.render('dardcor', { error: null });
+router.get('/auth/google', async (req, res) => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `http://localhost:3000/dardcor` }
+    });
+    if (error) return res.redirect('/dardcor');
+    res.redirect(data.url);
 });
 
-router.get('/register', forceSessionRestore, (req, res) => { 
-    res.render('register', { error: null }); 
+router.get('/auth/google/callback', async (req, res) => {
+    const code = req.query.code;
+    if (!code) return res.redirect('/dardcor');
+    try {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error || !data.user) return res.redirect('/dardcor');
+        const { data: dbUser } = await supabase.from('dardcor_users').select('*').eq('email', data.user.email).maybeSingle();
+        let finalUser = dbUser;
+        if (!dbUser) {
+            const { data: newUser } = await supabase.from('dardcor_users').insert([{ 
+                id: data.user.id, 
+                email: data.user.email, 
+                username: data.user.user_metadata.full_name || data.user.user_metadata.name || data.user.email.split('@')[0],
+                password: await bcrypt.hash(uuidv4(), 12),
+                profile_image: data.user.user_metadata.avatar_url || data.user.user_metadata.picture
+            }]).select().single();
+            finalUser = newUser;
+        }
+        if (finalUser) {
+            req.session.userAccount = finalUser;
+            req.session.cookie.maxAge = ONE_CENTURY;
+            res.cookie('dardcor_perm_auth', generateAuthToken(finalUser), cookieConfig);
+            return req.session.save(() => res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`));
+        }
+        res.redirect('/dardcor');
+    } catch (e) { res.redirect('/dardcor'); }
 });
 
 router.post('/dardcor-login', authLimiter, async (req, res) => { 
     let { email, password } = req.body; 
     if (!email || !password) return res.status(400).json({ success: false, message: 'Data tidak lengkap.' });
     try { 
-        const { data: user } = await supabase.from('dardcor_users').select('*').eq('email', email.trim().toLowerCase()).single(); 
+        const { data: user } = await supabase.from('dardcor_users').select('*').eq('email', email.trim().toLowerCase()).maybeSingle(); 
         if (!user || !await bcrypt.compare(password, user.password)) return res.status(400).json({ success: false, message: 'Kredensial salah.' }); 
-        
         req.session.userAccount = user; 
-        req.session.cookie.maxAge = ONE_CENTURY;
-        req.session.cookie.expires = new Date(Date.now() + ONE_CENTURY);
-        
-        const authToken = generateAuthToken(user);
-        res.cookie('dardcor_perm_auth', authToken, { maxAge: ONE_CENTURY, httpOnly: true, sameSite: 'lax', secure: false });
-        
+        res.cookie('dardcor_perm_auth', generateAuthToken(user), cookieConfig);
         req.session.save((err) => { 
             if (err) return res.status(500).json({ success: false }); 
             res.status(200).json({ success: true, redirectUrl: '/dardcorchat/dardcor-ai' }); 
@@ -272,7 +329,7 @@ router.post('/dardcor-login', authLimiter, async (req, res) => {
 
 router.get('/dardcor-logout', (req, res) => { 
     req.session.destroy(() => { 
-        res.clearCookie('connect.sid'); 
+        res.clearCookie('dardcor_session_id'); 
         res.clearCookie('dardcor_perm_auth');
         res.redirect('/dardcor'); 
     }); 
@@ -284,13 +341,32 @@ router.post('/register', authLimiter, async (req, res) => {
     email = email.trim().toLowerCase(); 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ success: false, message: 'Email tidak valid.' });
     try { 
-        const { data: existingUser } = await supabase.from('dardcor_users').select('email').eq('email', email).single(); 
+        const { data: existingUser } = await supabase.from('dardcor_users').select('email').eq('email', email).maybeSingle(); 
         if (existingUser) return res.status(400).json({ success: false, message: 'Email sudah terdaftar.' }); 
         await supabase.from('verification_codes').delete().eq('email', email); 
         const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
         const hashedPassword = await bcrypt.hash(password, 12); 
         await supabase.from('verification_codes').insert([{ username: username.substring(0, 50), email, password: hashedPassword, otp }]); 
-        await transporter.sendMail({ from: '"Dardcor Security" <no-reply@dardcor.com>', to: email, subject: 'Kode Verifikasi', html: `<div><h2>OTP:</h2><h1>${otp}</h1></div>` }); 
+        await transporter.sendMail({ 
+            from: '"Dardcor Security" <no-reply@dardcor.com>', 
+            to: email, 
+            subject: 'Kode Verifikasi Dardcor AI', 
+            html: `
+                <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                    <h2 style="color: #581c87; text-align: center;">Kode OTP Anda</h2>
+                    <div style="background: #f4f4f4; padding: 20px; text-align: center; border-radius: 8px;">
+                        <h1 style="letter-spacing: 5px; font-size: 32px; margin: 0;">${otp}</h1>
+                    </div>
+                    <p style="margin-top: 20px; font-size: 14px; color: #555; line-height: 1.6;">
+                        <b>Penting:</b> Kode ini hanya berlaku selama <b>5 menit</b>. Jika Anda tidak merasa melakukan pendaftaran di Dardcor AI, abaikan email ini atau segera hubungi tim keamanan kami. 
+                        <br><br>
+                        Jangan memberikan kode ini kepada siapapun (termasuk tim Dardcor AI). Kode ini bersifat rahasia untuk memverifikasi kepemilikan email Anda.
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="font-size: 11px; color: #aaa; text-align: center;">Dardcor AI Security System - Encrypted OTP Distribution</p>
+                </div>
+            ` 
+        }); 
         res.status(200).json({ success: true, email: email, redirectUrl: `/verify-otp?email=${encodeURIComponent(email)}` }); 
     } catch (err) { 
         sendDiscordError("Register Route", err);
@@ -298,26 +374,21 @@ router.post('/register', authLimiter, async (req, res) => {
     } 
 });
 
-router.get('/verify-otp', forceSessionRestore, (req, res) => { 
-    res.render('verify', { email: req.query.email }); 
+router.get('/verify-otp', (req, res) => {
+    if (req.session.userAccount) return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
+    res.render('verify', { email: req.query.email });
 });
 
 router.post('/verify-otp', authLimiter, async (req, res) => { 
     try { 
         const { email, otp } = req.body;
         if (!email || !otp) return res.status(400).json({ success: false });
-        const { data: record } = await supabase.from('verification_codes').select('*').eq('email', email).eq('otp', otp).single(); 
-        if (!record) return res.status(400).json({ success: false }); 
+        const { data: record } = await supabase.from('verification_codes').select('*').eq('email', email).eq('otp', otp).maybeSingle(); 
+        if (!record) return res.status(400).json({ success: false, message: 'OTP Salah.' }); 
         const { data: newUser } = await supabase.from('dardcor_users').insert([{ username: record.username, email: record.email, password: record.password }]).select().single(); 
         await supabase.from('verification_codes').delete().eq('email', email); 
-        
         req.session.userAccount = newUser; 
-        req.session.cookie.maxAge = ONE_CENTURY;
-        req.session.cookie.expires = new Date(Date.now() + ONE_CENTURY);
-        
-        const authToken = generateAuthToken(newUser);
-        res.cookie('dardcor_perm_auth', authToken, { maxAge: ONE_CENTURY, httpOnly: true, sameSite: 'lax', secure: false });
-        
+        res.cookie('dardcor_perm_auth', generateAuthToken(newUser), cookieConfig);
         req.session.save(() => { res.status(200).json({ success: true, redirectUrl: '/dardcorchat/dardcor-ai' }); }); 
     } catch (err) { 
         sendDiscordError("Verify OTP", err);
@@ -325,13 +396,11 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
     } 
 });
 
-router.get('/dardcorchat/profile', forceSessionRestore, (req, res) => { 
-    if (!req.session.userAccount) return res.redirect('/dardcor');
+router.get('/dardcorchat/profile', protectedRoute, (req, res) => { 
     res.render('dardcorchat/profile', { user: req.session.userAccount, success: null, error: null }); 
 });
 
-router.post('/dardcor/profile/update', forceSessionRestore, upload.single('profile_image'), async (req, res) => { 
-    if (!req.session.userAccount) return res.redirect('/dardcor');
+router.post('/dardcor/profile/update', protectedRoute, upload.single('profile_image'), async (req, res) => { 
     const userId = req.session.userAccount.id; 
     let updates = { username: req.body.username ? req.body.username.substring(0, 50) : req.session.userAccount.username }; 
     try { 
@@ -349,10 +418,7 @@ router.post('/dardcor/profile/update', forceSessionRestore, upload.single('profi
         } 
         const { data } = await supabase.from('dardcor_users').update(updates).eq('id', userId).select().single(); 
         req.session.userAccount = data; 
-        
-        const authToken = generateAuthToken(data);
-        res.cookie('dardcor_perm_auth', authToken, { maxAge: ONE_CENTURY, httpOnly: true, sameSite: 'lax', secure: false });
-        
+        res.cookie('dardcor_perm_auth', generateAuthToken(data), cookieConfig);
         req.session.save(() => { res.render('dardcorchat/profile', { user: data, success: "Sukses!", error: null }); }); 
     } catch (err) { 
         if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
@@ -360,13 +426,11 @@ router.post('/dardcor/profile/update', forceSessionRestore, upload.single('profi
     } 
 });
 
-router.get('/dardcorchat/dardcor-ai', forceSessionRestore, (req, res) => { 
-    if (!req.session.userAccount) return res.redirect('/dardcor');
+router.get('/dardcorchat/dardcor-ai', protectedRoute, (req, res) => { 
     res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`); 
 });
 
-router.get('/dardcorchat/dardcor-ai/:conversationId', forceSessionRestore, async (req, res) => { 
-    if (!req.session.userAccount) return res.redirect('/dardcor');
+router.get('/dardcorchat/dardcor-ai/:conversationId', protectedRoute, async (req, res) => { 
     const userId = req.session.userAccount.id; 
     let requestedId = req.params.conversationId; 
     if (!uuidValidate(requestedId)) return res.redirect(`/dardcorchat/dardcor-ai/${uuidv4()}`);
@@ -380,8 +444,7 @@ router.get('/dardcorchat/dardcor-ai/:conversationId', forceSessionRestore, async
     } 
 });
 
-router.get('/api/chat/:conversationId', forceSessionRestore, apiLimiter, async (req, res) => { 
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.get('/api/chat/:conversationId', protectedRoute, apiLimiter, async (req, res) => { 
     const userId = req.session.userAccount.id; 
     if (!uuidValidate(req.params.conversationId)) return res.status(400).json({ success: false });
     try { 
@@ -408,34 +471,29 @@ router.get('/api/chat/:conversationId', forceSessionRestore, apiLimiter, async (
     } catch (err) { res.status(500).json({ success: false }); } 
 });
 
-router.post('/dardcorchat/ai/new-chat', forceSessionRestore, (req, res) => { 
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.post('/dardcorchat/ai/new-chat', protectedRoute, (req, res) => { 
     req.session.currentConversationId = null; 
     req.session.save(() => { res.json({ success: true, redirectUrl: `/dardcorchat/dardcor-ai/${uuidv4()}` }); }); 
 });
 
-router.post('/dardcorchat/ai/rename-chat', forceSessionRestore, async (req, res) => { 
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.post('/dardcorchat/ai/rename-chat', protectedRoute, async (req, res) => { 
     if (!uuidValidate(req.body.conversationId)) return res.status(400).json({ success: false });
     try { await supabase.from('conversations').update({ title: req.body.newTitle.substring(0, 50) }).eq('id', req.body.conversationId).eq('user_id', req.session.userAccount.id); res.json({ success: true }); } catch (error) { res.status(500).json({ success: false }); } 
 });
 
-router.post('/dardcorchat/ai/delete-chat-history', forceSessionRestore, async (req, res) => { 
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.post('/dardcorchat/ai/delete-chat-history', protectedRoute, async (req, res) => { 
     if (!uuidValidate(req.body.conversationId)) return res.status(400).json({ success: false });
     try { await supabase.from('conversations').delete().eq('id', req.body.conversationId).eq('user_id', req.session.userAccount.id); res.json({ success: true }); } catch (error) { res.status(500).json({ success: false }); } 
 });
 
-router.get('/api/project/files', forceSessionRestore, async (req, res) => {
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.get('/api/project/files', protectedRoute, async (req, res) => {
     try {
         const { data } = await supabase.from('project_files').select('*').eq('user_id', req.session.userAccount.id);
         res.json({ success: true, files: data || [] });
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-router.post('/api/project/save', forceSessionRestore, async (req, res) => {
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.post('/api/project/save', protectedRoute, async (req, res) => {
     try {
         const { name, path, content, language, is_folder } = req.body;
         if (!name || name.length > 100) return res.status(400).json({ success: false });
@@ -452,8 +510,7 @@ router.post('/api/project/save', forceSessionRestore, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-router.post('/api/project/delete', forceSessionRestore, async (req, res) => {
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.post('/api/project/delete', protectedRoute, async (req, res) => {
     try {
         const { name, path } = req.body;
         await supabase.from('project_files').delete().match({ user_id: req.session.userAccount.id, name, path });
@@ -461,62 +518,52 @@ router.post('/api/project/delete', forceSessionRestore, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-router.post('/dardcorchat/ai/store-preview', forceSessionRestore, async (req, res) => { 
-    if (!req.session.userAccount) return res.status(401).json({ success: false });
+router.post('/dardcorchat/ai/store-preview', protectedRoute, async (req, res) => { 
     const previewId = uuidv4(); 
     try { await supabase.from('previews_website').insert({ id: previewId, user_id: req.session.userAccount.id, code: req.body.code, type: req.body.type || 'website' }); res.json({ success: true, previewId }); } catch (error) { res.status(500).json({ success: false }); } 
 });
 
-router.get('/dardcorchat/dardcor-ai/preview/:id', forceSessionRestore, async (req, res) => { 
-    if (!req.session.userAccount) return res.status(404).send('Not Found');
+router.get('/dardcorchat/dardcor-ai/preview/:id', protectedRoute, async (req, res) => { 
     if (!uuidValidate(req.params.id)) return res.status(404).send('Not Found');
     try { 
-        const { data } = await supabase.from('previews_website').select('code').eq('id', req.params.id).single(); 
+        const { data } = await supabase.from('previews_website').select('code').eq('id', req.params.id).maybeSingle(); 
         if (!data) return res.status(404).send('Not Found'); 
         res.setHeader('Content-Type', 'text/html'); 
         res.send(data.code); 
     } catch (err) { res.status(500).send("Error"); } 
 });
 
-router.get('/dardcorchat/dardcor-ai/diagram/:id', forceSessionRestore, async (req, res) => { 
-    if (!req.session.userAccount) return res.status(404).send('Not Found');
+router.get('/dardcorchat/dardcor-ai/diagram/:id', protectedRoute, async (req, res) => { 
     if (!uuidValidate(req.params.id)) return res.status(404).send('Not Found');
     try { 
-        const { data } = await supabase.from('previews_website').select('code').eq('id', req.params.id).single(); 
+        const { data } = await supabase.from('previews_website').select('code').eq('id', req.params.id).maybeSingle(); 
         if (!data) return res.status(404).send('Not Found'); 
         const codeBase64 = Buffer.from(data.code).toString('base64'); 
         res.render('dardcorchat/diagram', { code: codeBase64 }); 
     } catch (err) { res.status(500).send("Error"); } 
 });
 
-router.post('/dardcorchat/ai/chat-stream', forceSessionRestore, uploadMiddleware, async (req, res) => {
+router.post('/dardcorchat/ai/chat-stream', protectedRoute, uploadMiddleware, async (req, res) => {
     req.socket.setTimeout(0); 
     req.setTimeout(0); 
-
-    if (!req.session.userAccount) return res.end();
-
     const userId = req.session.userAccount.id;
     let message = req.body.message ? req.body.message.trim() : "";
     const uploadedFiles = req.files || [];
     let conversationId = req.body.conversationId;
     if (!uuidValidate(conversationId)) conversationId = uuidv4();
     const useWebSearch = req.body.useWebSearch === 'true';
-
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-
     let botMessageId = null;
     let fullResponse = "";
     let isStreamCompleted = false;
-
     req.on('close', async () => {
         if (!isStreamCompleted && botMessageId && fullResponse) {
              try { await supabase.from('history_chat').update({ message: fullResponse }).eq('id', botMessageId); } catch(e) {}
         }
         uploadedFiles.forEach(file => { if (file.path) fs.unlink(file.path, () => {}); });
     });
-
     try {
         const contextData = { searchResults: '', globalHistory: '' };
         let systemContext = "";
@@ -535,16 +582,13 @@ router.post('/dardcorchat/ai/chat-stream', forceSessionRestore, uploadMiddleware
                 }
             }
         }
-        
         if (useWebSearch || message.toLowerCase().match(/(cari|search|harga|terbaru|berita|info tentang)/)) {
             const searchRes = await searchWeb(message);
             if (searchRes) contextData.searchResults = searchRes;
         }
-
         const geminiFiles = []; 
         let fileTextContext = "";
         let fileMetadata = []; 
-
         if (uploadedFiles && uploadedFiles.length > 0) {
             for (const file of uploadedFiles) {
                 const fileBuffer = fs.readFileSync(file.path);
@@ -553,88 +597,57 @@ router.post('/dardcorchat/ai/chat-stream', forceSessionRestore, uploadMiddleware
                 const originalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
                 const fileExt = path.extname(originalName).toLowerCase();
                 const fileNamePath = `${userId}/${Date.now()}-${uuidv4()}${fileExt}`;
-                
-                const meta = { 
-                    filename: originalName, 
-                    size: file.size, 
-                    mimetype: mime, 
-                    path: null, 
-                    url: null,
-                    storage_path: fileNamePath 
-                };
-
+                const meta = { filename: originalName, size: file.size, mimetype: mime, path: null, url: null, storage_path: fileNamePath };
                 try {
                     const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(fileNamePath, fileBuffer, { contentType: mime, upsert: false });
                     if (!uploadError) {
                         const { data: signedData } = await supabase.storage.from('chat-attachments').createSignedUrl(fileNamePath, 3600);
-                        if (signedData && signedData.signedUrl) {
-                            meta.path = signedData.signedUrl; 
-                            meta.url = signedData.signedUrl;
-                        }
+                        if (signedData && signedData.signedUrl) { meta.path = signedData.signedUrl; meta.url = signedData.signedUrl; }
                     }
                 } catch (err) { }
-
                 fileMetadata.push(meta);
-                
                 const codeExtensions = ['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.c', '.cpp', '.h', '.cs', '.php', '.ejs', '.html', '.css', '.json', '.xml', '.sql', '.md', '.txt', '.env', '.yml', '.yaml', '.ini', '.log', '.sh', '.bat', '.ps1', '.vb', '.config', '.gitignore', '.rb', '.go', '.rs', '.swift', '.kt', '.lua', '.pl', '.r', '.dart'];
-
                 if (mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('video/') || mime.startsWith('audio/')) {
                     geminiFiles.push({ ...file, buffer: fileBuffer }); 
                 }
-
-                if (mime.startsWith('image/')) {
-                    fileTextContext += `\n[IMAGE ATTACHED: ${originalName}]\n`;
-                } 
-                else if (mime === 'application/pdf') {
-                    let extractedText = await parsePdfSafe(fileBuffer);
-                    fileTextContext += `\n[PDF: ${originalName}]\n${extractedText}\n`;
-                } 
-                else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileExt === '.docx') {
+                if (mime.startsWith('image/')) { 
+                    fileTextContext += `\n[IMAGE ATTACHED: ${originalName}]\n`; 
+                } else if (mime === 'application/pdf') { 
+                    let extractedText = await parsePdfSafe(fileBuffer); 
+                    fileTextContext += `\n[PDF: ${originalName}]\n${extractedText}\n`; 
+                } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileExt === '.docx') { 
                     try { 
                         const result = await mammoth.extractRawText({ buffer: fileBuffer }); 
-                        let text = result.value || "";
+                        let text = result.value || ""; 
                         fileTextContext += `\n[WORD: ${originalName}]\n${text.substring(0, 5000)}\n`; 
-                    } catch (e) { }
-                } 
-                else if (mime.includes('spreadsheet') || mime.includes('excel') || fileExt === '.xlsx' || fileExt === '.xls' || fileExt === '.csv') {
+                    } catch (e) { } 
+                } else if (mime.includes('spreadsheet') || mime.includes('excel') || fileExt === '.xlsx' || fileExt === '.xls' || fileExt === '.csv') { 
                     try { 
                         const workbook = xlsx.read(fileBuffer, { type: 'buffer' }); 
-                        let allSheetsText = "";
-                        workbook.SheetNames.slice(0, 3).forEach(sheetName => {
-                            const csv = xlsx.utils.sheet_to_csv(workbook.Sheets[sheetName]);
-                            allSheetsText += `\n[SHEET: ${sheetName}]\n${csv.substring(0, 2000)}\n`;
-                        });
+                        let allSheetsText = ""; 
+                        workbook.SheetNames.slice(0, 3).forEach(sheetName => { 
+                            const csv = xlsx.utils.sheet_to_csv(workbook.Sheets[sheetName]); 
+                            allSheetsText += `\n[SHEET: ${sheetName}]\n${csv.substring(0, 2000)}\n`; 
+                        }); 
                         fileTextContext += `\n[EXCEL: ${originalName}]\n${allSheetsText}\n`; 
-                    } catch (e) { }
-                }
-                else if (codeExtensions.includes(fileExt) || mime.startsWith('text/') || mime === 'application/json' || mime === 'application/javascript' || mime === 'application/xml') {
-                    try {
-                        let rawText = fileBuffer.toString('utf-8');
-                        fileTextContext += `\n[CODE/TEXT: ${originalName}]\n${rawText.substring(0, 10000)}\n`;
-                    } catch(e) { }
+                    } catch (e) { } 
+                } else if (codeExtensions.includes(fileExt) || mime.startsWith('text/') || mime === 'application/json' || mime === 'application/javascript' || mime === 'application/xml') { 
+                    try { 
+                        let rawText = fileBuffer.toString('utf-8'); 
+                        fileTextContext += `\n[CODE/TEXT: ${originalName}]\n${rawText.substring(0, 10000)}\n`; 
+                    } catch(e) { } 
                 } 
                 fs.unlink(file.path, () => {});
             }
         }
-
         if (fileTextContext) systemContext += `\n[ATTACHED FILES DATA]\n${fileTextContext}\n[END FILES]`;
         if (systemContext.trim().length > 0) message = `${systemContext}\n\nUSER REQUEST: ${message}`;
-
-        const { data: convCheck } = await supabase.from('conversations').select('id').eq('id', conversationId).single();
+        const { data: convCheck } = await supabase.from('conversations').select('id').maybeSingle();
         if (!convCheck) await supabase.from('conversations').insert({ id: conversationId, user_id: userId, title: req.body.message.substring(0, 30) });
         else await supabase.from('conversations').update({ updated_at: new Date() }).eq('id', conversationId);
-
-        await supabase.from('history_chat').insert({ 
-            user_id: userId, 
-            conversation_id: conversationId, 
-            role: 'user', 
-            message: req.body.message, 
-            file_metadata: fileMetadata 
-        });
-
+        await supabase.from('history_chat').insert({ user_id: userId, conversation_id: conversationId, role: 'user', message: req.body.message, file_metadata: fileMetadata });
         const { data: botMsg } = await supabase.from('history_chat').insert({ user_id: userId, conversation_id: conversationId, role: 'bot', message: '' }).select('id').single();
         if (botMsg) botMessageId = botMsg.id;
-
         const { data: historyData } = await supabase.from('history_chat').select('role, message').eq('conversation_id', conversationId).order('created_at', { ascending: true });
         const stream = await handleChatStream(message, geminiFiles, historyData, contextData);
         for await (const chunk of stream) {
@@ -642,12 +655,10 @@ router.post('/dardcorchat/ai/chat-stream', forceSessionRestore, uploadMiddleware
             fullResponse += text;
             res.write(`event: message\ndata: ${JSON.stringify({ chunk: text })}\n\n`);
         }
-
         isStreamCompleted = true;
         if (botMessageId) await supabase.from('history_chat').update({ message: fullResponse }).eq('id', botMessageId);
         res.write(`event: message\ndata: ${JSON.stringify({ done: true })}\n\n`);
         res.end();
-
     } catch (error) {
         uploadedFiles.forEach(file => { if (file.path && fs.existsSync(file.path)) fs.unlink(file.path, () => {}); });
         if (botMessageId) {

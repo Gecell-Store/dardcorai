@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleBtn = document.getElementById('toggleRegPassword');
     const passwordInput = document.getElementById('regPassword');
     const registerForm = document.getElementById('registerForm');
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
 
     if (toggleBtn && passwordInput) {
         const icon = toggleBtn.querySelector('i');
@@ -11,6 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
             passwordInput.setAttribute('type', type);
             icon.className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
             passwordInput.focus();
+        });
+    }
+
+    if (googleLoginBtn) {
+        googleLoginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = '/auth/google';
         });
     }
 
@@ -68,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    window.location.href = result.redirectUrl || '/verify-otp';
+                    window.location.href = result.redirectUrl || `/verify-otp?email=${encodeURIComponent(email)}`;
                 } else {
                     throw new Error(result.message || 'Registrasi gagal.');
                 }

@@ -2,11 +2,15 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https:;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#050508">
-    <title>Dardcor AI - Verification</title>
+    <title>Dardcor AI</title>
     <link rel="icon" href="/logo.png">
     <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -46,8 +50,13 @@
                 Kode OTP telah dikirim ke <br>
                 <span class="text-purple-300 font-medium break-all"><%= email %></span>
                 <br>
-                <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-yellow-500/20 bg-yellow-500/5 text-yellow-500/90 text-[10px] font-medium">
-                    <i class="fas fa-clock"></i> Kode berlaku selama 5 menit
+                <div class="mt-4 p-3 bg-purple-900/10 border border-purple-500/20 rounded-lg text-left text-[11px] leading-relaxed">
+                    <p class="text-purple-200 font-bold mb-1"><i class="fas fa-info-circle mr-1"></i> Informasi Penting:</p>
+                    <ul class="list-disc list-inside space-y-1 text-purple-400/80">
+                        <li>Periksa folder <b>Spam</b> jika kode tidak ditemukan di kotak masuk.</li>
+                        <li>Jangan berikan kode ini kepada siapapun demi keamanan akun Anda.</li>
+                        <li>Sesi verifikasi akan kadaluarsa otomatis dalam 5 menit.</li>
+                    </ul>
                 </div>
             </div>
             <form id="otpForm" class="space-y-6 relative z-10" autocomplete="off">

@@ -46,10 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        if (pwaBtn) {
-            pwaBtn.classList.remove('hidden');
-            pwaBtn.classList.add('flex');
-        }
     });
 
     if (pwaBtn) {
