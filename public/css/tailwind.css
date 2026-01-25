@@ -2664,10 +2664,6 @@ video {
     margin-top: 2rem;
   }
 
-  .md\:inline {
-    display: inline;
-  }
-
   .md\:h-14 {
     height: 3.5rem;
   }

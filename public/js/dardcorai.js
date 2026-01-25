@@ -894,13 +894,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         renderer.link = function(href, title, text) {
             let u = (href || '').trim();
-            const allowedProtocols = ['http:', 'https:', 'mailto:', '#'];
             try {
-                const parsed = new URL(u, window.location.origin);
-                if (!allowedProtocols.includes(parsed.protocol)) u = '#';
-            } catch(e) { u = '#'; }
+                new URL(u); 
+            } catch(e) {
+                if (!u.startsWith('/') && !u.startsWith('#')) {
+                }
+            }
             
-            return `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="text-purple-500 hover:text-purple-300 hover:underline font-bold transition-colors break-all" title="${escapeHtml(title || '')}">${text}</a>`;
+            if (u.toLowerCase().startsWith('javascript:')) u = '#';
+
+            const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+            return `<a href="${escapeHtml(u)}"${titleAttr} target="_blank" rel="noopener noreferrer" class="text-purple-500 hover:text-purple-300 hover:underline font-bold transition-colors break-all">${text}</a>`;
         };
         
         marked.setOptions({ renderer: renderer, gfm: true, breaks: true, sanitize: false });

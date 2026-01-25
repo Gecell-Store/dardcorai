@@ -60,7 +60,6 @@ const apiLimiter = rateLimit({
 const securityMiddleware = (req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -369,7 +368,7 @@ router.post('/auth/google-bridge', async (req, res) => {
             res.json({ success: true, redirectUrl: '/loading' });
         });
     } catch (e) {
-        sendDiscordError("OAuth Bridge Failure", e);
+        await sendDiscordError("OAuth Bridge Failure", e);
         res.status(500).json({ success: false, message: e.message });
     }
 });
@@ -390,7 +389,7 @@ router.post('/dardcor-login', authLimiter, async (req, res) => {
             res.status(200).json({ success: true, redirectUrl: '/loading' }); 
         }); 
     } catch (err) { 
-        sendDiscordError("Login System", err);
+        await sendDiscordError("Login System", err);
         res.status(500).json({ success: false, message: 'Internal engine error.' }); 
     } 
 });
@@ -441,7 +440,7 @@ router.post('/register', authLimiter, async (req, res) => {
         }); 
         res.status(200).json({ success: true, email: email, redirectUrl: `/verify-otp?email=${encodeURIComponent(email)}` }); 
     } catch (err) { 
-        sendDiscordError("Auth Flow Disruption", err);
+        await sendDiscordError("Auth Flow Disruption", err);
         res.status(500).json({ success: false, message: "Handshake failed. Core unreachable." }); 
     } 
 });
@@ -467,7 +466,7 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
             res.status(200).json({ success: true, redirectUrl: '/loading' }); 
         });
     } catch (err) { 
-        sendDiscordError("OTP Engine Fault", err);
+        await sendDiscordError("OTP Engine Fault", err);
         res.status(500).json({ success: false, message: "Verification engine failure." }); 
     } 
 });
@@ -513,7 +512,7 @@ router.post('/dardcor/profile/update', protectedRoute, upload.single('profile_im
         }); 
     } catch (err) { 
         if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
-        sendDiscordError("Identity Update Failure", err);
+        await sendDiscordError("Identity Update Failure", err);
         res.redirect('/dardcorchat/profile?error=Update error: ' + encodeURIComponent(err.message)); 
     } 
 });
@@ -553,7 +552,7 @@ router.get('/dardcorchat/dardcor-ai/:conversationId', protectedRoute, async (req
             contentPage: 'dardcorai' 
         }); 
     } catch (err) { 
-        sendDiscordError("Neural Link Loader", err);
+        await sendDiscordError("Neural Link Loader", err);
         res.redirect('/dardcor'); 
     } 
 });
@@ -868,7 +867,7 @@ router.post('/dardcorchat/ai/chat-stream', protectedRoute, uploadMiddleware, asy
         res.end();
 
     } catch (error) {
-        sendDiscordError("Neural Link Stream Engine Failure", error);
+        await sendDiscordError("Neural Link Stream Engine Failure", error);
         const errorMsg = "Core synchronization failed. The neural link has encountered a critical buffer overflow or logic fault. Attempting to restore link...";
         if (botMessageId) {
             await supabase.from('history_chat').update({ message: errorMsg }).eq('id', botMessageId);
